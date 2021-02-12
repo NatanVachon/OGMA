@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 
 import Draws as dr
 from Brush import Brush
@@ -11,7 +12,7 @@ class App:
     def __init__(self):
         # Initialize window
         self.window = tk.Tk()
-        # self.window.attributes('-zoomed', True)
+        self.window.attributes('-zoomed', True)
         self.window.title("OGMA")
 
         # BUTTONS FRAME
@@ -24,9 +25,37 @@ class App:
         plot_button = tk.Button(buttons_frame, text="Plot")
         plot_button.pack(side=tk.LEFT)
 
-        # Create draw canvas
-        self.canvas = tk.Canvas(self.window, bg="black")  # #20204E
-        self.canvas.pack(fill=tk.BOTH, expand=True)
+        # Draw frame
+        draw_frame = ttk.Frame(self.window)
+        draw_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Create global canvas and sub frame
+        global_canvas = tk.Canvas(draw_frame, background="red")
+
+        # Create scroll bars
+        vertical_scrollbar = ttk.Scrollbar(draw_frame, orient="vertical", command=global_canvas.yview)
+        vertical_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        horizontal_scrollbar = ttk.Scrollbar(draw_frame, orient="horizontal", command=global_canvas.xview)
+        horizontal_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        # Pack canvas
+        global_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Configure canvas
+        global_canvas.configure(yscrollcommand=vertical_scrollbar.set, xscrollcommand=horizontal_scrollbar.set)
+        global_canvas.bind("<Configure>", lambda event: global_canvas.configure(scrollregion=global_canvas.bbox("all")))
+
+        # Create sub frame
+        sub_frame = tk.Frame(global_canvas)
+
+        # Create window in sub frame
+        global_canvas.create_window((0, 0), window=sub_frame, anchor="nw", width=1920, height=1920)
+
+        # Create draw canvases
+        background_canvas = tk.Canvas(sub_frame, bg="gray", width=1920, height=1920)
+        background_canvas.pack(fill=tk.BOTH, expand=True)
+        self.canvas = tk.Canvas(background_canvas, bg="black", width=1440, height=1527)  # #20204E
+        self.canvas.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
 
         # Initialize formulas list
         self.formulas = []
