@@ -5,6 +5,7 @@ import Draws as dr
 from Brush import Brush
 from CustomQueues import Deque
 from Interpreter import Interpreter
+from Page import Book
 
 
 class App:
@@ -24,38 +25,16 @@ class App:
         # Plot button
         plot_button = tk.Button(buttons_frame, text="Plot")
         plot_button.pack(side=tk.LEFT)
+        # New page button
+        new_page_button = tk.Button(buttons_frame, text="New page")
+        new_page_button.pack(side=tk.LEFT)
 
-        # Draw frame
-        draw_frame = ttk.Frame(self.window)
-        draw_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-        # Create global canvas and sub frame
-        global_canvas = tk.Canvas(draw_frame, background="red")
-
-        # Create scroll bars
-        vertical_scrollbar = ttk.Scrollbar(draw_frame, orient="vertical", command=global_canvas.yview)
-        vertical_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        horizontal_scrollbar = ttk.Scrollbar(draw_frame, orient="horizontal", command=global_canvas.xview)
-        horizontal_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
-
-        # Pack canvas
-        global_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Configure canvas
-        global_canvas.configure(yscrollcommand=vertical_scrollbar.set, xscrollcommand=horizontal_scrollbar.set)
-        global_canvas.bind("<Configure>", lambda event: global_canvas.configure(scrollregion=global_canvas.bbox("all")))
-
-        # Create sub frame
-        sub_frame = tk.Frame(global_canvas)
-
-        # Create window in sub frame
-        global_canvas.create_window((0, 0), window=sub_frame, anchor="nw", width=1920, height=1920)
-
-        # Create draw canvases
-        background_canvas = tk.Canvas(sub_frame, bg="gray", width=1920, height=1920)
-        background_canvas.pack(fill=tk.BOTH, expand=True)
-        self.canvas = tk.Canvas(background_canvas, bg="black", width=1440, height=1527)  # #20204E
-        self.canvas.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        # Create book of pages
+        # Create notebook and pages
+        self.book = Book(self.window)
+        self.new_page()
+        # Assign book callbacks
+        new_page_button.configure(command=self.new_page)
 
         # Initialize formulas list
         self.formulas = []
@@ -75,31 +54,17 @@ class App:
         # Initialize mode
         self.mode = "Free"
         # Initialize right click menu for mode selection
-        self.right_click_menu = tk.Menu(self.canvas, tearoff=False)
+        self.right_click_menu = tk.Menu(self.window, tearoff=False)
         self.right_click_menu.add_command(label="Free", command=lambda: self.set_mode("Free"))
         self.right_click_menu.add_command(label="Eval", command=lambda: self.set_mode("Eval"))
         self.right_click_menu.add_command(label="Function", command=lambda: self.set_mode("Function"))
-        # Initialize mode binds
-        self.canvas.bind("<Button-3>", lambda event: self.right_click_menu.tk_popup(self.canvas.winfo_rootx() + event.x,
-                                                                                    self.canvas.winfo_rooty() + event.y)
-                         )
 
         # Initialize brush
-        self.brush = Brush(self.canvas)
-        # Initialize brush events
-        self.canvas.bind("<Button-1>", self.start_draw)
-        self.canvas.bind("<B1-Motion>", self.stay_draw)
-        self.canvas.bind("<ButtonRelease-1>", self.end_draw)
+        self.brush = Brush(Book.canvas)
         # Initialize brush keyboard shortcuts
         self.window.bind('b', lambda event: self.brush.open_settings())
         # Initialize brush settings button
         brush_button.configure(command=self.brush.open_settings)
-
-        # Initialize OCR module
-        dr.set_canvas(self.canvas)
-
-        # Debug
-        self.debug_counter = 0
 
         # Start application
         self.window.mainloop()
@@ -167,6 +132,18 @@ class App:
 
             # Update display
             self.update_display()
+
+    def new_page(self):
+        self.book.new_page()
+        # Bind callbacks to the new canvas
+        # Draw binds
+        Book.canvas.bind("<Button-1>", self.start_draw)
+        Book.canvas.bind("<B1-Motion>", self.stay_draw)
+        Book.canvas.bind("<ButtonRelease-1>", self.end_draw)
+        # Mode binds
+        Book.canvas.bind("<Button-3>", lambda event: self.right_click_menu.tk_popup(Book.canvas.winfo_rootx() + event.x,
+                                                                                    Book.canvas.winfo_rooty() + event.y)
+                         )
 
 
 if __name__ == "__main__":

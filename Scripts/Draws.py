@@ -1,6 +1,8 @@
-from ImageRecognition import OCR
 import numpy as np
 import tkinter as tk
+
+from ImageRecognition import OCR
+from Page import Book
 
 
 class Box:
@@ -38,7 +40,7 @@ class Line(Box):
     def delete(self):
         # Delete lines
         for line_id in self.line_ids:
-            Formula.canvas.delete(line_id)
+            Book.canvas.delete(line_id)
         # Line not valid anymore
         self.is_valid = False
 
@@ -91,9 +93,6 @@ class Character(Box):
 
 
 class Formula(Box):
-    # Static members
-    canvas = None
-
     def __init__(self, line, mode):
         # Initialize class instance
         bounds = line.get_bounds()
@@ -104,11 +103,11 @@ class Formula(Box):
         self.mode = mode
 
         # Initialize rectangle
-        self.rectangle = Formula.canvas.create_rectangle(0, 0, 0, 0, outline="green")
+        self.rectangle = Book.canvas.create_rectangle(0, 0, 0, 0, outline="green")
 
         # Initialize entry
         self.entry_text = tk.StringVar()
-        self.entry = tk.Entry(Formula.canvas, textvariable=self.entry_text, font="Calibri 20")
+        self.entry = tk.Entry(Book.canvas, textvariable=self.entry_text, font="Calibri 20")
         self.entry.place(height=30)
         self.entry.bind("<Return>", self.update_prediction)
 
@@ -147,7 +146,7 @@ class Formula(Box):
         y_max = max(self.center[1] + 0.5 * self.height, last_char.center[1] + 0.7 * last_char.height)
 
         # Update rectangle
-        Formula.canvas.coords(self.rectangle, x_min, y_min, x_max, y_max)
+        Book.canvas.coords(self.rectangle, x_min, y_min, x_max, y_max)
 
         self.center = [0.5 * (x_min + x_max), 0.5 * (y_min + y_max)]
         self.width = x_max - x_min
@@ -173,7 +172,7 @@ class Formula(Box):
 
         # If formula is empty, delete rectangle
         if len(self.chars) == 0:
-            Formula.canvas.delete(self.rectangle)
+            Book.canvas.delete(self.rectangle)
             self.entry.destroy()
 
     def update_prediction(self, event):
@@ -189,16 +188,10 @@ class Formula(Box):
             self.entry_text.set(self.get_prediction())
 
         # Stop focusing entry
-        Formula.canvas.focus_set()
+        Book.canvas.focus_set()
 
     def __del__(self):
         print("Formula deleted")
-
-
-# OCR module initialization
-def set_canvas(canvas):
-    OCR.canvas = canvas
-    Formula.canvas = canvas
 
 
 def is_letter(char):

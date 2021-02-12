@@ -3,6 +3,7 @@ import numpy as np
 import numpy.linalg as lin
 
 from Draws import Line
+from Page import Book
 
 
 class Brush:
@@ -27,6 +28,9 @@ class Brush:
         self.last_point = np.zeros(2)
 
     def start_line(self, point):
+        # Update focused canvas
+        self.canvas = Book.canvas
+
         # Set first line point
         self.last_point[0] = point[0]
         self.last_point[1] = point[1]

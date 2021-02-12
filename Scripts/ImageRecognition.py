@@ -4,6 +4,8 @@ import numpy as np
 import numpy.linalg as lin
 import pyscreenshot as ImageGrab
 
+from Page import Book
+
 CAPTURE_SIZE = 32
 CAPTURE_MARGIN = 2
 
@@ -28,8 +30,6 @@ def is_math_symbol(char):
 
 
 class OCR:
-    canvas = None  # TODO find something else
-
     def __init__(self):
         self.model = tf.keras.models.load_model("../Models/handwriting.model")
 
@@ -41,7 +41,7 @@ class OCR:
             return math_symbol
 
         # Grab image
-        x_offset, y_offset = OCR.canvas.winfo_rootx(), OCR.canvas.winfo_rooty()
+        x_offset, y_offset = Book.canvas.winfo_rootx(), Book.canvas.winfo_rooty()
         x1, y1, x2, y2 = char.get_bounds()
         img = ImageGrab.grab(bbox=(x_offset + x1, y_offset + y1, x_offset + x2, y_offset + y2))
 
