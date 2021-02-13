@@ -6,10 +6,20 @@ import pyscreenshot as ImageGrab
 
 from Page import Book
 
+# Capture parameters
 CAPTURE_SIZE = 32
 CAPTURE_MARGIN = 2
 
+# Model declaration
+default_model_path = "../Models/handwriting.model"
 
+
+# Module initialization
+def init(model_path=default_model_path):
+    image_predict.ocr_model = tf.keras.models.load_model(model_path)
+
+
+# Tests if char is a math symbol or not
 def is_math_symbol(char):
     """ Returns a math symbol if the character is one, else return None """
     # One line characters
@@ -29,54 +39,58 @@ def is_math_symbol(char):
     return None
 
 
-class OCR:
-    def __init__(self):
-        self.model = tf.keras.models.load_model("../Models/handwriting.model")
+# Predicts the given character
+def predict(char):
+    # Check if the character is a math symbol
+    math_symbol = is_math_symbol(char)
 
-    def predict(self, char):
-        # Check if the character is a math symbol
-        math_symbol = is_math_symbol(char)
+    if math_symbol:
+        return math_symbol
 
-        if math_symbol:
-            return math_symbol
+    # Grab image
+    x_offset, y_offset = Book.canvas.winfo_rootx(), Book.canvas.winfo_rooty()
+    x1, y1, x2, y2 = char.get_bounds()
+    img = ImageGrab.grab(bbox=(x_offset + x1, y_offset + y1, x_offset + x2, y_offset + y2))
 
-        # Grab image
-        x_offset, y_offset = Book.canvas.winfo_rootx(), Book.canvas.winfo_rooty()
-        x1, y1, x2, y2 = char.get_bounds()
-        img = ImageGrab.grab(bbox=(x_offset + x1, y_offset + y1, x_offset + x2, y_offset + y2))
+    # Predict character
+    return image_predict(img)
 
-        # Predict character
-        return self.image_predict(img)
 
-    def image_predict(self, img):
-        # Get size and scale factor
-        size_x, size_y = img.size
-        scale_factor = (CAPTURE_SIZE - 2 * CAPTURE_MARGIN) / np.max(img.size)
+# Use CNN to predict the character from image
+# image_predict function has one static attribute: ocr_model
+def image_predict(img):
+    # Check not to raise error
+    if not hasattr(image_predict, "ocr_model"):
+        image_predict.ocr_model = tf.keras.models.load_model(default_model_path)
 
-        # Convert raw image to a squared one
-        img = img.convert('L').resize((int(scale_factor * size_x), int(scale_factor * size_y)), Image.ANTIALIAS)
+    # Get size and scale factor
+    size_x, size_y = img.size
+    scale_factor = (CAPTURE_SIZE - 2 * CAPTURE_MARGIN) / np.max(img.size)
 
-        # Map values to 0.0 -> 1.0
-        img = np.array(img)
-        img = img - np.min(img)
-        img = img / np.max(img)
+    # Convert raw image to a squared one
+    img = img.convert('L').resize((int(scale_factor * size_x), int(scale_factor * size_y)), Image.ANTIALIAS)
 
-        # Square the image and add margin
-        margin_img = np.zeros((CAPTURE_SIZE, CAPTURE_SIZE))
-        offset_x, rest_x = (CAPTURE_SIZE - img.shape[0]) // 2, (CAPTURE_SIZE - img.shape[0]) % 2
-        offset_y, rest_y = (CAPTURE_SIZE - img.shape[1]) // 2, (CAPTURE_SIZE - img.shape[1]) % 2
-        margin_img[offset_x:CAPTURE_SIZE - offset_x - rest_x, offset_y:CAPTURE_SIZE - offset_y - rest_y] = img
+    # Map values to 0.0 -> 1.0
+    img = np.array(img)
+    img = img - np.min(img)
+    img = img / np.max(img)
 
-        # Predict character
-        prediction = self.model.predict(margin_img[None, :, :])
+    # Square the image and add margin
+    margin_img = np.zeros((CAPTURE_SIZE, CAPTURE_SIZE))
+    offset_x, rest_x = (CAPTURE_SIZE - img.shape[0]) // 2, (CAPTURE_SIZE - img.shape[0]) % 2
+    offset_y, rest_y = (CAPTURE_SIZE - img.shape[1]) // 2, (CAPTURE_SIZE - img.shape[1]) % 2
+    margin_img[offset_x:CAPTURE_SIZE - offset_x - rest_x, offset_y:CAPTURE_SIZE - offset_y - rest_y] = img
 
-        prediction = np.argmax(prediction)
+    # Predict character
+    prediction = image_predict.ocr_model.predict(margin_img[None, :, :])
 
-        if prediction < 10:
-            # The prediction is a digit
-            return chr(ord('0') + prediction)
-        else:
-            # The prediction is a letter
-            return chr(ord('A') + prediction - 10)
+    prediction = np.argmax(prediction)
+
+    if prediction < 10:
+        # The prediction is a digit
+        return chr(ord('0') + prediction)
+    else:
+        # The prediction is a letter
+        return chr(ord('A') + prediction - 10)
 
 

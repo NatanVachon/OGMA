@@ -1,7 +1,7 @@
 import numpy as np
 import tkinter as tk
 
-from ImageRecognition import OCR
+import ImageRecognition as ir
 from Page import Book
 
 
@@ -37,21 +37,25 @@ class Line(Box):
         # Save line IDs
         self.line_ids = line_ids
 
+        # Initialize delete callback
+        self.delete_callback = lambda: None
+
     def delete(self):
         # Delete lines
         for line_id in self.line_ids:
             Book.canvas.delete(line_id)
+
         # Line not valid anymore
         self.is_valid = False
+
+        # Call delete callback
+        self.delete_callback()
 
     def __del__(self):
         print("Line deleted")
 
 
 class Character(Box):
-    # Static members
-    ocr = OCR()
-
     def __init__(self, line):
         # Initialize class instance
         bounds = line.get_bounds()
@@ -80,7 +84,7 @@ class Character(Box):
         self.predict()
 
     def predict(self):
-        self.prediction = Character.ocr.predict(self)
+        self.prediction = ir.predict(self)
 
     def clean(self):
         for line in self.lines:
@@ -109,12 +113,12 @@ class Formula(Box):
         self.entry_text = tk.StringVar()
         self.entry = tk.Entry(Book.canvas, textvariable=self.entry_text, font="Calibri 20")
         self.entry.place(height=30)
-        self.entry.bind("<Return>", self.update_prediction)
+        self.entry.bind("<Return>", lambda event: self.update_prediction())
 
         # Add first line
         self.add_line(line)
 
-    def add_line(self, new_line):
+    def add_line(self, new_line):  # TODO Not clean
         if len(self.chars) == 0:
             # Create new character in formula
             last_char = Character(new_line)
@@ -122,14 +126,18 @@ class Formula(Box):
         elif not self.chars[-1].is_intersecting(new_line):
             # Create new character in formula
             last_char = Character(new_line)
-            # Check if the two last characters are -- to make it a = #TODO Not clean
+            # Check if the two last characters are -- to make it a =
             if last_char.prediction == '-' and self.chars[-1].prediction == '-':
                 self.chars[-1].add_line(new_line)
                 self.chars[-1].prediction = '='
             # Check if the new character is a 0 and the last one was a letter (not possible): used to avoid 0 and O
-            # confusion #TODO Not clean
+            # confusion
             elif last_char.prediction == '0' and is_letter(self.chars[-1].prediction):
                 last_char.prediction = 'O'
+                self.chars.append(last_char)
+            # Check if the new character is a 5 and the last one was a letter (not possible): used to avoid 5 and S
+            elif last_char.prediction == '5' and is_letter(self.chars[-1].prediction):
+                last_char.prediction = 'S'
                 self.chars.append(last_char)
             # Nominal case: just add the new character
             else:
@@ -175,8 +183,7 @@ class Formula(Box):
             Book.canvas.delete(self.rectangle)
             self.entry.destroy()
 
-    def update_prediction(self, event):
-        print("Update prediction")
+    def update_prediction(self):
         # Check that the character number is correct
         new_prediction = self.entry_text.get()
         if len(new_prediction) == len(self.chars):
@@ -194,5 +201,40 @@ class Formula(Box):
         print("Formula deleted")
 
 
+class BlackBoard:
+    def __init__(self):
+        self.formulas = []
+        self.mode = "Free"  # Blackboard mode corresponds to the mode given to the next created formulas
+
+    def add_line(self, new_line):
+        # TODO currently: only the last formula
+
+        # If the new line intersects an existing formula, add the new line to this formula
+        if len(self.formulas) > 0 and self.formulas[-1].is_intersecting(new_line):
+            last_formula = self.formulas[-1]
+            last_formula.add_line(new_line)
+        else:
+            last_formula = Formula(new_line, self.mode)
+            self.formulas.append(last_formula)
+
+        # Assign line delete callback to formula.clean
+        new_line.delete_callback = lambda: self.clean_formula(last_formula)
+
+    def clean_formula(self, formula):
+        formula.clean()
+        if len(formula.chars) == 0:
+            self.formulas.remove(formula)
+
+    def get_prediction(self):
+        # TODO currently: only the last formula
+
+        if len(self.formulas) > 0:
+            predicted_formula = self.formulas[-1]
+            return predicted_formula.get_prediction(), predicted_formula.mode
+        else:
+            return None
+
+
+# Utility functions
 def is_letter(char):
     return ord('A') <= ord(char) <= ord("Z")

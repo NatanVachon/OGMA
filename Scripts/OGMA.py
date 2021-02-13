@@ -1,22 +1,23 @@
 import tkinter as tk
-from tkinter import ttk
 
 import Draws as dr
 from Brush import Brush
 from CustomQueues import Deque
 from Interpreter import Interpreter
 from Page import Book
+import ImageRecognition as ir
 
 
 class App:
     # Method definitions
     def __init__(self):
+        # UI
         # Initialize window
         self.window = tk.Tk()
         self.window.attributes('-zoomed', True)
         self.window.title("OGMA")
 
-        # BUTTONS FRAME
+        # Buttons frame
         buttons_frame = tk.Frame(self.window)
         buttons_frame.pack(side=tk.TOP)
         # Brush button
@@ -30,41 +31,46 @@ class App:
         new_page_button.pack(side=tk.LEFT)
 
         # Create book of pages
-        # Create notebook and pages
         self.book = Book(self.window)
         self.new_page()
-        # Assign book callbacks
+        # Assign new page button callback
         new_page_button.configure(command=self.new_page)
 
-        # Initialize formulas list
-        self.formulas = []
+        # Initialize blackboard
+        self.blackboard = dr.BlackBoard()
 
         # Initialize undo
         self.actions = Deque(10)
-        self.window.bind_all("<Control-z>", lambda event: self.undo())
+        self.window.bind("<Control-z>", lambda event: self.undo())
 
         # Initialize interpreter instance
         self.interpreter = Interpreter()
+
         # Initialize plot button callback
         plot_button.configure(command=self.interpreter.plot)
+
         # Initialize interpreter binds
         self.window.bind('e', lambda event: self.evaluate())
         self.window.bind('p', lambda event: self.interpreter.plot())
 
-        # Initialize mode
-        self.mode = "Free"
         # Initialize right click menu for mode selection
         self.right_click_menu = tk.Menu(self.window, tearoff=False)
         self.right_click_menu.add_command(label="Free", command=lambda: self.set_mode("Free"))
         self.right_click_menu.add_command(label="Eval", command=lambda: self.set_mode("Eval"))
         self.right_click_menu.add_command(label="Function", command=lambda: self.set_mode("Function"))
 
+        # BRUSH
         # Initialize brush
         self.brush = Brush(Book.canvas)
+
         # Initialize brush keyboard shortcuts
         self.window.bind('b', lambda event: self.brush.open_settings())
+
         # Initialize brush settings button
         brush_button.configure(command=self.brush.open_settings)
+
+        # Initialize OCR module
+        ir.init()
 
         # Start application
         self.window.mainloop()
@@ -88,50 +94,25 @@ class App:
         # Save line to undo later
         self.actions.put(new_line)
 
-        # If we are in free mode don't create or use formulas
-        if self.mode == "Free":
+        if self.blackboard.mode == "Free":
+            # If we are in free mode don't create or use formulas
             return
-
-        # Manage formulas
-        if len(self.formulas) > 0 and self.formulas[-1].is_intersecting(new_line):
-            last_formula = self.formulas[-1]
-
-            # Check if our line intersects with the current formula
-            last_formula.add_line(new_line)
         else:
-            last_formula = dr.Formula(new_line, self.mode)
-            self.formulas.append(last_formula)
+            # Else, add line to the blackboard
+            self.blackboard.add_line(new_line)
 
     def evaluate(self):
-        prediction = self.formulas[-1].get_prediction()
+        prediction, mode = self.blackboard.get_prediction()
 
-        output = self.interpreter.evaluate(prediction, self.mode)
-
-        # Add result to entry text
-        if output:
-            prediction += output
-
-    def update_display(self):
-        for formula in self.formulas:
-            formula.clean()
-
-            # Check if formula is empty
-            if len(formula.chars) == 0:
-
-                self.formulas.remove(formula)
-                del formula
+        self.interpreter.evaluate(prediction, mode)
 
     def set_mode(self, mode):
-        self.mode = mode
+        self.blackboard.mode = mode
 
     def undo(self):
         last_action = self.actions.get()
         if last_action:
             last_action.delete()
-            del last_action
-
-            # Update display
-            self.update_display()
 
     def new_page(self):
         self.book.new_page()
