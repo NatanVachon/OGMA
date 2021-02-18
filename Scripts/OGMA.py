@@ -1,6 +1,5 @@
 import tkinter as tk
 
-import Draws as dr
 from Brush import Brush
 from CustomQueues import Deque
 import Interpreter as ip
@@ -36,9 +35,6 @@ class App:
         self.new_page()
         # Assign new page button callback
         new_page_button.configure(command=self.new_page)
-
-        # Initialize blackboard
-        self.blackboard = dr.BlackBoard()
 
         # Initialize undo
         self.actions = Deque(10)
@@ -92,21 +88,17 @@ class App:
         # Save line to undo later
         self.actions.put(new_line)
 
-        if self.blackboard.mode == "Free":
-            # If we are in free mode don't create or use formulas
-            return
-        else:
-            # Else, add line to the blackboard
-            self.blackboard.add_line(new_line)
+        # Add line to blackboard
+        self.book.add_line(new_line)
 
     def evaluate(self):
-        last_formula = self.blackboard.get_last_formula()
+        last_formula = self.book.get_last_formula()
         python_string = get_python_rpz(last_formula, ip.get_variable_names())
 
         ip.evaluate(python_string, last_formula.mode)
 
     def set_mode(self, mode):
-        self.blackboard.mode = mode
+        self.book.set_mode(mode)
 
     def undo(self):
         last_action = self.actions.get()

@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+import Draws as dr
 
 
 class Book:
@@ -13,10 +14,16 @@ class Book:
 
         # Create page list
         self.pages = []
+        self.focused_page = None
 
         # Bind events
         def update_canvas():
-            Book.canvas = self.pages[self.notebook.index(self.notebook.select())].canvas
+            page_index = self.notebook.index(self.notebook.select())
+            # Update static canvas
+            Book.canvas = self.pages[page_index].canvas
+            # Update focused page
+            self.focused_page = self.pages[page_index]
+
         self.notebook.bind("<<NotebookTabChanged>>", lambda event: update_canvas())
 
     def new_page(self):
@@ -28,8 +35,21 @@ class Book:
         # Select it
         self.notebook.select(len(self.pages) - 1)
 
-        # Update canvas
+        # Update static canvas
         Book.canvas = new_page.canvas
+
+        # Update focused page
+        self.focused_page = self.pages[-1]
+
+    def add_line(self, new_line):
+        if self.focused_page.blackboard.mode != "Free":
+            self.focused_page.blackboard.add_line(new_line)
+
+    def get_last_formula(self):
+        return self.focused_page.blackboard.get_last_formula()
+
+    def set_mode(self, mode):
+        self.focused_page.blackboard.mode = mode
 
 
 class DrawPage:
@@ -65,3 +85,6 @@ class DrawPage:
         background_canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas = tk.Canvas(background_canvas, bg="black", width=1440, height=1527)
         self.canvas.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+
+        # Create page blackboard
+        self.blackboard = dr.BlackBoard()
