@@ -51,9 +51,6 @@ class Line(Box):
         # Call delete callback
         self.delete_callback()
 
-    def __del__(self):
-        print("Line deleted")
-
 
 class Character(Box):
     def __init__(self, line):
@@ -71,12 +68,13 @@ class Character(Box):
         self.lines.append(new_line)
 
         # Recompute bounds
-        x_min = min(self.center[0] - 0.5 * self.width, new_line.center[0] - 0.5 * new_line.width)
-        x_max = max(self.center[0] + 0.5 * self.width, new_line.center[0] + 0.5 * new_line.width)
-        y_min = min(self.center[1] - 0.5 * self.height, new_line.center[1] - 0.5 * new_line.height)
-        y_max = max(self.center[1] + 0.5 * self.height, new_line.center[1] + 0.5 * new_line.height)
+        x_min_char, y_min_char, x_max_char, y_max_char = self.get_bounds()
+        x_min_line, y_min_line, x_max_line, y_max_line = new_line.get_bounds()
+        x_min, x_max = min(x_min_char, x_min_line), max(x_max_char, x_max_line)
+        y_min, y_max = min(y_min_char, y_min_line), max(y_max_char, y_max_line)
 
-        self.center = [0.5 * (x_min + x_max), 0.5 * (y_min + y_max)]
+        self.center[0] = 0.5 * (x_min + x_max)
+        self.center[1] = 0.5 * (y_min + y_max)
         self.width = x_max - x_min
         self.height = y_max - y_min
 
@@ -86,14 +84,16 @@ class Character(Box):
     def predict(self):
         self.prediction = ir.predict(self)
 
+    def absorb(self, char):
+        for line in char.lines:
+            self.lines.append(line)
+            char.lines.remove(line)
+
     def clean(self):
         for line in self.lines:
             if not line.is_valid:
                 self.lines.remove(line)
                 del line
-
-    def __del__(self):
-        print("Char deleted")
 
 
 class Formula(Box):
@@ -101,6 +101,8 @@ class Formula(Box):
         # Initialize class instance
         bounds = line.get_bounds()
         super().__init__(bounds[0], bounds[1], bounds[2], bounds[3])
+
+        # Initialize characters list
         self.chars = []
 
         # Initialize mode
@@ -119,50 +121,62 @@ class Formula(Box):
         self.add_line(line)
 
     def add_line(self, new_line):  # TODO Not clean
-        if len(self.chars) == 0:
+        if len(self.chars) == 0 or not self.chars[-1].is_intersecting(new_line):
             # Create new character in formula
             last_char = Character(new_line)
             self.chars.append(last_char)
-        elif not self.chars[-1].is_intersecting(new_line):
-            # Create new character in formula
-            last_char = Character(new_line)
-            # Check if the two last characters are -- to make it a =
-            if last_char.prediction == '-' and self.chars[-1].prediction == '-':
-                self.chars[-1].add_line(new_line)
-                self.chars[-1].prediction = '='
-            # Check if the new character is a 0 and the last one was a letter (not possible): used to avoid 0 and O
-            # confusion
-            elif last_char.prediction == '0' and is_letter(self.chars[-1].prediction):
-                last_char.prediction = 'O'
-                self.chars.append(last_char)
-            # Check if the new character is a 5 and the last one was a letter (not possible): used to avoid 5 and S
-            elif last_char.prediction == '5' and is_letter(self.chars[-1].prediction):
-                last_char.prediction = 'S'
-                self.chars.append(last_char)
-            # Nominal case: just add the new character
-            else:
-                self.chars.append(last_char)
         else:
+            # Add new line to last character
             last_char = self.chars[-1]
-            # Check if new line intersects last character
             last_char.add_line(new_line)
 
-        # Recompute bounds and add extra space
-        x_min = min(self.center[0] - 0.5 * self.width, last_char.center[0] - 0.7 * last_char.width)
-        x_max = max(self.center[0] + 0.5 * self.width, last_char.center[0] + 2.0 * last_char.width)
-        y_min = min(self.center[1] - 0.5 * self.height, last_char.center[1] - 0.7 * last_char.height)
-        y_max = max(self.center[1] + 0.5 * self.height, last_char.center[1] + 0.7 * last_char.height)
+        # Run confusion avoidance check
+        self.avoid_confusion()
 
-        # Update rectangle
+        # Recompute bounds and add extra space
+        x_min = min(self.center[0] - 0.5 * self.width, last_char.center[0] - 0.75 * last_char.width)
+        x_max = max(self.center[0] + 0.5 * self.width, last_char.center[0] + 2.0 * last_char.width)
+        y_min = min(self.center[1] - 0.5 * self.height, last_char.center[1] - 1.5 * last_char.height)
+        y_max = max(self.center[1] + 0.5 * self.height, last_char.center[1] + 1.5 * last_char.height)
+
+        # Update rectangles
         Book.canvas.coords(self.rectangle, x_min, y_min, x_max, y_max)
 
+        # Update box parameters
         self.center = [0.5 * (x_min + x_max), 0.5 * (y_min + y_max)]
         self.width = x_max - x_min
         self.height = y_max - y_min
 
         # Update entry
         self.entry.place(x=self.center[0] - 0.5 * self.width, y=self.center[1] + 0.6 * self.height)
-        self.entry_text.set(self.get_prediction())
+        self.entry_text.set(get_python_rpz(self, ip.get_variable_names()))
+
+    def avoid_confusion(self):
+        # If length is lower than two, no confusion is avoidable
+        if len(self.chars) < 2:
+            return
+
+        # Get two last characters
+        char, p_char = self.chars[-1], self.chars[-2]
+
+        # Check if the last two characters are -- to make it a =
+        if char.prediction == '-' and p_char.prediction == '-':
+            p_char.absorb(char)
+            p_char.prediction = '='
+            self.chars.remove(char)
+
+        # Check if the last character is a - below the last character
+        elif char.prediction == '-' and char.center[1] > p_char.center[1] + 0.5 * p_char.height:
+            # Char is a straight line below the last character, it is a division bar
+            char.prediction = '/'
+
+        # Check if the last two characters are a letter and 0 (not possible) to avoid 0 and O confusion
+        elif char.prediction == '0' and is_letter(p_char.prediction):
+            char.prediction = 'O'
+
+        # Check if the last two characters are a letter and 5 (not possible) to avoid 5 and S confusion
+        elif char.prediction == '5' and is_letter(p_char.prediction):
+            char.prediction = 'S'
 
     def get_prediction(self):
         prediction = ""
@@ -197,9 +211,6 @@ class Formula(Box):
         # Stop focusing entry
         Book.canvas.focus_set()
 
-    def __del__(self):
-        print("Formula deleted")
-
 
 class BlackBoard:
     def __init__(self):
@@ -225,12 +236,11 @@ class BlackBoard:
         if len(formula.chars) == 0:
             self.formulas.remove(formula)
 
-    def get_prediction(self):
+    def get_last_formula(self):
         # TODO currently: only the last formula
 
         if len(self.formulas) > 0:
-            predicted_formula = self.formulas[-1]
-            return predicted_formula.get_prediction(), predicted_formula.mode
+            return self.formulas[-1]
         else:
             return None
 
