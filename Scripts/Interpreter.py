@@ -9,119 +9,136 @@ import numpy as np
 import sympy as sp
 
 
-class Interpreter:
-    def __init__(self):
-        self.globals_eval = {"COS": np.cos, "SIN": np.sin, "EXP": np.exp}
-        self.globals_sym = {"COS": sp.cos, "SIN": sp.sin, "EXP": sp.exp}
-        self.variables = {}
+globals_eval = {"COS": np.cos, "SIN": np.sin, "EXP": np.exp}
+globals_sym = {"COS": sp.cos, "SIN": sp.sin, "EXP": sp.exp}
+variables = {}
 
-        # JFD
-        # self.evaluate("F(X)=COS(X)", "Function")
 
-    def evaluate(self, string, mode):
-        output = None
+def get_variable_names():
+    names = []
+    for name in globals_eval.keys():
+        if name != "__builtins__":
+            names.append(name)
 
-        if mode == "Eval":
-            if string[-1] == '=':
-                output = str(eval(string[:-1], self.globals_eval, self.variables))
-                print(output)
-            else:
-                exec(string, self.globals_eval, self.variables)
-                print("Exec done")
+    names += list(variables.keys())
 
-        elif mode == "Function":
-            # TODO Sanity check
-            # TODO Explain all of this
+    return names
 
-            # Expression must be in the following format: f(x) = ...
 
-            # Extract variable name and function name
-            first_brace_idx = string.find('(')
-            equal_idx = string.find('=')
-            variable = string[first_brace_idx + 1]
-            function = string[:first_brace_idx]
+def evaluate(string, mode):
+    output = None
 
-            # Declare symbolic variable
-            self.variables[variable] = sp.Symbol(variable)
+    if mode == "Eval":
+        if string[-1] == '=':
+            output = str(eval(string[:-1], globals_eval, variables))
+            print(output)
+        else:
+            exec(string, globals_eval, variables)
+            print("Exec done")
 
-            # Declare symbolic function
-            exec(function + "_sym" + string[equal_idx:], self.globals_sym, self.variables)
+    elif mode == "Function":
+        # TODO Sanity check
+        # TODO Explain all of this
 
-            # Declare python function (python functions have a _f suffix)
-            self.variables[function] = lambda xx: self.variables[function + "_sym"].subs(self.variables[variable], xx).evalf()
+        # Expression must be in the following format: f(x) = ...
 
-        return output
+        # Extract variable name and function name
+        first_brace_idx = string.find('(')
+        equal_idx = string.find('=')
+        variable = string[first_brace_idx + 1]
+        function = string[:first_brace_idx]
 
-    def plot(self):  # TODO Clean
-        # Open new window
-        top = tk.Toplevel()
-        top.title("Plot")
+        # Declare symbolic variable
+        variables[variable] = sp.Symbol(variable)
 
-        # CREATE FUNCTION SELECTOR
-        # Search function names
-        func_names = [name for name, var in self.variables.items() if callable(var)]
+        # Declare symbolic function
+        exec(function + "_sym" + string[equal_idx:], globals_sym, variables)
 
-        # Create string variable for dropdown menu
-        string_var = tk.StringVar()
+        # Declare python function (python functions have a _f suffix)
+        variables[function] = lambda xx: variables[function + "_sym"].subs(variables[variable], xx).evalf()
 
-        if len(func_names) > 0:
-            string_var.set(func_names[0])
+    return output
 
-        # FUNCTION FRAME
-        function_frame = tk.Frame(top)
-        function_frame.pack(side=tk.TOP)
-        # Function choose label
-        tk.Label(function_frame, text="Plotted function").pack(side=tk.TOP)
-        # Function choose dropdown
-        tk.OptionMenu(function_frame, string_var, '', *func_names).pack(side=tk.TOP)
 
-        # PLOT RANGE FRAME
-        range_frame = tk.Frame(top)
-        range_frame.pack(side=tk.TOP)
-        # Min value label and entry
-        tk.Label(range_frame, text="x_min:").pack(side=tk.LEFT)
-        min_var = tk.StringVar(value="0.0")
-        min_var.trace("w", lambda *args: plot_func())  # Update plot on min modification
-        min_entry = tk.Entry(range_frame, textvariable=min_var)
-        min_entry.pack(side=tk.LEFT)
-        # Max value label and entry
-        max_var = tk.StringVar(value="1.0")
-        max_var.trace("w", lambda *args: plot_func())  # Update plot on max modification
-        max_entry = tk.Entry(range_frame, textvariable=max_var)
-        max_entry.pack(side=tk.RIGHT)
-        tk.Label(range_frame, text="x_max:").pack(side=tk.RIGHT)
+def plot():  # TODO Clean
+    # Open new window
+    top = tk.Toplevel()
+    top.title("Plot")
 
-        # Create plot
-        f = Figure()
-        a = f.add_subplot(111)
-        a.grid()
-        l, = a.plot([], [])
+    # CREATE FUNCTION SELECTOR
+    # Search function names
+    func_names = [name for name, var in variables.items() if callable(var)]
 
-        # Create and assign function name change callback
-        def plot_func():
-            # Get plotted function
-            function_name = string_var.get()
-            if function_name == "":
-                return
-            # Compute plot range
-            x_list = np.linspace(float(min_var.get()), float(max_var.get()), 100)
-            # Compute curve points
-            f_eval = self.variables[function_name]
-            y_list = [f_eval(x) for x in x_list]
-            # Update plot
-            l.set_xdata(x_list)
-            l.set_ydata(y_list)
-            a.set_title(function_name)
-            a.relim()
-            a.autoscale_view()
-            f.canvas.draw()
-            f.canvas.flush_events()
+    # Create string variable for dropdown menu
+    string_var = tk.StringVar()
 
-        string_var.trace("w", lambda *args: plot_func())
+    if len(func_names) > 0:
+        string_var.set(func_names[0])
 
-        # Plot function
-        plot_func()
+    # FUNCTION FRAME
+    function_frame = tk.Frame(top)
+    function_frame.pack(side=tk.TOP)
+    # Function choose label
+    tk.Label(function_frame, text="Plotted function").pack(side=tk.TOP)
+    # Function choose dropdown
+    tk.OptionMenu(function_frame, string_var, '', *func_names).pack(side=tk.TOP)
 
-        # Create canvas
-        canvas = FigureCanvasTkAgg(f, top)
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+    # PLOT RANGE FRAME
+    range_frame = tk.Frame(top)
+    range_frame.pack(side=tk.TOP)
+    # Min value label and entry
+    tk.Label(range_frame, text="x_min:").pack(side=tk.LEFT)
+    min_var = tk.StringVar(value="-10.0")
+    min_var.trace("w", lambda *args: plot_func())  # Update plot on min modification
+    min_entry = tk.Entry(range_frame, textvariable=min_var)
+    min_entry.pack(side=tk.LEFT)
+    # Max value label and entry
+    tk.Label(range_frame, text="x_max:").pack(side=tk.LEFT)
+    max_var = tk.StringVar(value="10.0")
+    max_var.trace("w", lambda *args: plot_func())  # Update plot on max modification
+    max_entry = tk.Entry(range_frame, textvariable=max_var)
+    max_entry.pack(side=tk.LEFT)
+    # Point nb label and entry
+    tk.Label(range_frame, text="Point nb:").pack(side=tk.LEFT)
+    point_nb_var = tk.StringVar(value="100")
+    point_nb_var.trace("w", lambda *args: plot_func())
+    point_nb_entry = tk.Entry(range_frame, textvariable=point_nb_var)
+    point_nb_entry.pack(side=tk.LEFT)
+
+    # Create plot
+    f = Figure()
+    a = f.add_subplot(111)
+    a.grid()
+    l, = a.plot([], [])
+
+    # Create and assign function name change callback
+    def plot_func():
+        # Get plotted function
+        function_name = string_var.get()
+
+        # Sanity check
+        if function_name == "" or min_var.get() == "" or max_var.get() == "" or point_nb_entry.get() == "":
+            return
+
+        # Compute plot range
+        x_list = np.linspace(float(min_var.get()), float(max_var.get()), int(point_nb_var.get()))
+        # Compute curve points
+        f_eval = variables[function_name]
+        y_list = ([sp.re(f_eval(x)) for x in x_list])
+        # Update plot
+        l.set_xdata(x_list)
+        l.set_ydata(y_list)
+        a.set_title(function_name)
+        a.relim()
+        a.autoscale_view()
+        f.canvas.draw()
+        f.canvas.flush_events()
+
+    string_var.trace("w", lambda *args: plot_func())
+
+    # Plot function
+    plot_func()
+
+    # Create canvas
+    canvas = FigureCanvasTkAgg(f, top)
+    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)

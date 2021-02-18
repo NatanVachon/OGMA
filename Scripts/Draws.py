@@ -3,6 +3,7 @@ import tkinter as tk
 
 import ImageRecognition as ir
 from Page import Book
+import Interpreter as ip
 
 
 class Box:

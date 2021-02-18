@@ -3,7 +3,7 @@ import tkinter as tk
 import Draws as dr
 from Brush import Brush
 from CustomQueues import Deque
-from Interpreter import Interpreter
+import Interpreter as ip
 from Page import Book
 import ImageRecognition as ir
 
@@ -43,15 +43,12 @@ class App:
         self.actions = Deque(10)
         self.window.bind("<Control-z>", lambda event: self.undo())
 
-        # Initialize interpreter instance
-        self.interpreter = Interpreter()
-
         # Initialize plot button callback
-        plot_button.configure(command=self.interpreter.plot)
+        plot_button.configure(command=ip.plot)
 
         # Initialize interpreter binds
         self.window.bind('e', lambda event: self.evaluate())
-        self.window.bind('p', lambda event: self.interpreter.plot())
+        self.window.bind('p', lambda event: ip.plot())
 
         # Initialize right click menu for mode selection
         self.right_click_menu = tk.Menu(self.window, tearoff=False)
@@ -104,7 +101,7 @@ class App:
     def evaluate(self):
         prediction, mode = self.blackboard.get_prediction()
 
-        self.interpreter.evaluate(prediction, mode)
+        ip.evaluate(python_string, last_formula.mode)
 
     def set_mode(self, mode):
         self.blackboard.mode = mode
