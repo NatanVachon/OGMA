@@ -70,18 +70,16 @@ def plot(root):  # TODO Clean
     # Search function names
     func_names = [name for name, var in variables.items() if callable(var)]
 
-    # Create string variable for dropdown menu
-    string_var = tk.StringVar()
-
-    if len(func_names) > 0:
-        string_var.set(func_names[0])
-
     # FUNCTION FRAME
     function_frame = tk.Frame(top)
     function_frame.pack(side=tk.TOP)
     # Function choose label
     tk.Label(function_frame, text="Plotted function").pack(side=tk.TOP)
     # Function choose dropdown
+    string_var = tk.StringVar()
+    if len(func_names) > 0:
+        string_var.set(func_names[0])
+    string_var.trace("w", lambda *args: plot_func())
     tk.OptionMenu(function_frame, string_var, '', *func_names).pack(side=tk.TOP)
 
     # PLOT RANGE FRAME
@@ -102,7 +100,7 @@ def plot(root):  # TODO Clean
     # Point nb label and entry
     tk.Label(range_frame, text="Point nb:").pack(side=tk.LEFT)
     point_nb_var = tk.StringVar(value="100")
-    point_nb_var.trace("w", lambda *args: plot_func())
+    point_nb_var.trace("w", lambda *args: plot_func())  # Update plot on step modification
     point_nb_entry = tk.Entry(range_frame, textvariable=point_nb_var)
     point_nb_entry.pack(side=tk.LEFT)
 
@@ -117,12 +115,12 @@ def plot(root):  # TODO Clean
         # Get plotted function
         function_name = string_var.get()
 
-        # Sanity check
-        if function_name == "" or min_var.get() == "" or max_var.get() == "" or point_nb_entry.get() == "":
-            return
-
         # Compute plot range
-        x_list = np.linspace(float(min_var.get()), float(max_var.get()), int(point_nb_var.get()))
+        # Catch value error in case of invalid input
+        try:
+            x_list = np.linspace(float(min_var.get()), float(max_var.get()), int(point_nb_var.get()))
+        except ValueError:
+            return
         # Compute curve points
         f_eval = variables[function_name]
         y_list = ([sp.re(f_eval(x)) for x in x_list])
@@ -134,8 +132,6 @@ def plot(root):  # TODO Clean
         a.autoscale_view()
         f.canvas.draw()
         f.canvas.flush_events()
-
-    string_var.trace("w", lambda *args: plot_func())
 
     # Plot function
     plot_func()

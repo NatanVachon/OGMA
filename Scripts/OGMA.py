@@ -45,11 +45,11 @@ class App:
         self.window.bind("<Control-z>", lambda event: self.undo())
 
         # Initialize plot button callback
-        plot_button.configure(command=ip.plot)
+        plot_button.configure(command=lambda: ip.plot(self.window))
 
         # Initialize interpreter binds
         self.window.bind('e', lambda event: self.evaluate())
-        self.window.bind('p', lambda event: ip.plot())
+        self.window.bind('p', lambda event: ip.plot(self.window))
 
         # Initialize right click menu for mode selection
         self.right_click_menu = tk.Menu(self.window, tearoff=False)
@@ -62,10 +62,10 @@ class App:
         self.brush = Brush(Book.canvas)
 
         # Initialize brush keyboard shortcuts
-        self.window.bind('b', lambda event: self.brush.open_settings())
+        self.window.bind('b', lambda event: self.brush.open_settings(self.window))
 
         # Initialize brush settings button
-        brush_button.configure(command=self.brush.open_settings)
+        brush_button.configure(command=lambda: self.brush.open_settings(self.window))
 
         # Initialize OCR module
         ir.init()
