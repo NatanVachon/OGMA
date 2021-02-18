@@ -60,9 +60,10 @@ def evaluate(string, mode):
     return output
 
 
-def plot():  # TODO Clean
+def plot(root):  # TODO Clean
     # Open new window
     top = tk.Toplevel()
+    top.transient(root)  # Plot window is always on top of main window
     top.title("Plot")
 
     # CREATE FUNCTION SELECTOR

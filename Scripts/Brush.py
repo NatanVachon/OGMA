@@ -90,8 +90,9 @@ class Brush:
         else:
             return None
 
-    def open_settings(self):
+    def open_settings(self, root):
         top = tk.Toplevel()
+        top.transient(root)  # Brush window is always on top of main window
         top.title("Brush settings")
 
         # SETTINGS FRAME
