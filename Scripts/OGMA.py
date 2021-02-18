@@ -6,6 +6,7 @@ from CustomQueues import Deque
 import Interpreter as ip
 from Page import Book
 import ImageRecognition as ir
+from FormulaRepresentation import get_python_rpz
 
 
 class App:
@@ -99,7 +100,8 @@ class App:
             self.blackboard.add_line(new_line)
 
     def evaluate(self):
-        prediction, mode = self.blackboard.get_prediction()
+        last_formula = self.blackboard.get_last_formula()
+        python_string = get_python_rpz(last_formula, ip.get_variable_names())
 
         ip.evaluate(python_string, last_formula.mode)
 

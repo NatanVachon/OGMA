@@ -3,6 +3,7 @@ import tkinter as tk
 
 import ImageRecognition as ir
 from Page import Book
+from FormulaRepresentation import get_python_rpz
 import Interpreter as ip
 
 
