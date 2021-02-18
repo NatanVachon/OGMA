@@ -132,9 +132,8 @@ def get_python_rpz(formula, declared_variables):
     python_string = base_expressions[0].base
     for i in range(1, len(base_expressions)):
         # Successions of DIGIT <-> LETTER, PARENTHESIS -> PARENTHESIS or LETTER -> LETTER have a multiplication between
-        if {base_expressions[i - 1].type, base_expressions[i].type} == {DIGIT, LETTER} or \
-                {base_expressions[i - 1].type, base_expressions[i].type} == {PARENTHESIS, PARENTHESIS} or \
-                {base_expressions[i - 1].type, base_expressions[i].type} == {LETTER, LETTER}:
+        succession = {base_expressions[i - 1].type, base_expressions[i].type}
+        if succession == {DIGIT, LETTER} or succession == {PARENTHESIS, PARENTHESIS} or succession == {LETTER, LETTER}:
             # Add multiply between base expressions
             python_string += "*" + base_expressions[i].base
         else:
@@ -149,8 +148,8 @@ def get_python_rpz(formula, declared_variables):
         python_list[par.start()] = ''
         python_list[par.start() + 1] = ''
         python_list[par.start() + 2] = '('
-        python_list[par.start() + 4] = ''
-        python_list[par.start() + 5] = ')'
+        python_list[par.end() - 2] = ''
+        python_list[par.end() - 1] = ')'
 
     python_list = filter(lambda c: c != '', python_list)
 
@@ -169,23 +168,21 @@ def split_letter_expression(string, declared_variables):
 
     # Iterate through each declared variable
     for var in declared_variables:
-        # Look for each occurrence of this variable
+        # Look for each occurrence of this variable. Start bound is inclusive and end bound is exclusive
         var_bounds = finditer(var, string)
         for var_bound in var_bounds:
             # Check if the found occurrence bounds aren't in previously found expression bounds
             if all([bound[0] >= var_bound.end() or bound[1] <= var_bound.start() for bound in bounds]):
                 bounds.append([var_bound.start(), var_bound.end()])
 
-    # Now lets create a list of min bounds and max bounds
-    min_bounds, max_bounds = [bound[0] for bound in bounds], [bound[1] for bound in bounds]
+    # Now lets create a list of bounds without duplicates
+    bounds = list(set([bound[0] for bound in bounds]) | set([bound[1] for bound in bounds]))
     # Construct final string by adding * in both side of bounds
     final_string = string[0]
 
     for i in range(1, len(string)):
-        if i in min_bounds:
+        if i in bounds:
             final_string += '*' + string[i]
-        elif i in max_bounds and i != len(string) - 1:
-            final_string += string[i] + '*'
         else:
             final_string += string[i]
 
