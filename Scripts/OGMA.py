@@ -46,6 +46,7 @@ class App:
         # Initialize interpreter binds
         self.window.bind('e', lambda event: self.evaluate())
         self.window.bind('p', lambda event: ip.plot(self.window))
+        self.window.bind('v', lambda event: ip.open_variable_window(self.window))
 
         # Initialize right click menu for mode selection
         self.right_click_menu = tk.Menu(self.window, tearoff=False)

@@ -139,3 +139,17 @@ def plot(root):  # TODO Clean
     # Create canvas
     canvas = FigureCanvasTkAgg(f, top)
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+
+def open_variable_window(root):
+    # Open new window
+    top = tk.Toplevel(background="Gray")
+    top.title("Variables")
+    top.transient(root)  # Variable window is always on top of the main window
+
+    # Variables label
+    tk.Label(top, text="Variables:", font="Calibri 16").pack(side=tk.TOP, pady=(0, 10))
+
+    # Print each variable
+    for var_name, var_value in variables.items():
+        tk.Label(top, text="{0} = {1}".format(var_name, str(var_value))).pack(side=tk.TOP)
