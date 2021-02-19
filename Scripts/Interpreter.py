@@ -115,6 +115,10 @@ def plot(root):  # TODO Clean
         # Get plotted function
         function_name = string_var.get()
 
+        # Plotted function sanity check
+        if function_name == '':
+            return
+
         # Compute plot range
         # Catch value error in case of invalid input
         try:
