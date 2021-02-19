@@ -52,7 +52,7 @@ class App:
         self.right_click_menu = tk.Menu(self.window, tearoff=False)
         self.right_click_menu.add_command(label="Free", command=lambda: self.set_mode("Free"))
         self.right_click_menu.add_command(label="Eval", command=lambda: self.set_mode("Eval"))
-        self.right_click_menu.add_command(label="Function", command=lambda: self.set_mode("Function"))
+        self.right_click_menu.add_command(label="Declare", command=lambda: self.set_mode("Declare"))
 
         # BRUSH
         # Initialize brush

@@ -11,7 +11,8 @@ import sympy as sp
 
 globals_eval = {"COS": np.cos, "SIN": np.sin, "EXP": np.exp}
 globals_sym = {"COS": sp.cos, "SIN": sp.sin, "EXP": sp.exp}
-variables = {}
+variables_sym = {}
+variables_eval = {}
 
 
 def get_variable_names():
@@ -20,7 +21,7 @@ def get_variable_names():
         if name != "__builtins__":
             names.append(name)
 
-    names += list(variables.keys())
+    names += list(variables_eval.keys())
 
     return names
 
@@ -30,32 +31,60 @@ def evaluate(string, mode):
 
     if mode == "Eval":
         if string[-1] == '=':
-            output = str(eval(string[:-1], globals_eval, variables))
+            output = str(eval(string[:-1], globals_eval, variables_eval))
             print(output)
         else:
-            exec(string, globals_eval, variables)
+            exec(string, globals_eval, variables_eval)
             print("Exec done")
 
-    elif mode == "Function":
-        # TODO Sanity check
+    elif mode == "Declare":
         # TODO Explain all of this
 
-        # Expression must be in the following format: f(x) = ...
+        # Sanity check
+        assert '=' in string, "A declaration must contain a '=' character"
 
-        # Extract variable name and function name
-        first_brace_idx = string.find('(')
+        # Check if we declare a variable or a function
         equal_idx = string.find('=')
-        variable = string[first_brace_idx + 1]
-        function = string[:first_brace_idx]
 
-        # Declare symbolic variable
-        variables[variable] = sp.Symbol(variable)
+        # If there are parenthesis before the equal character, a function is declared
+        if '(' in string[:equal_idx] and ')' in string[:equal_idx]:
+            # Expression must be in the following format: f(x) = ...
 
-        # Declare symbolic function
-        exec(function + "_sym" + string[equal_idx:], globals_sym, variables)
+            # Extract variable name and function name
+            first_brace_idx = string.find('(')
+            variable = string[first_brace_idx + 1]
+            function = string[:first_brace_idx]
 
-        # Declare python function (python functions have a _f suffix)
-        variables[function] = lambda xx: variables[function + "_sym"].subs(variables[variable], xx).evalf()
+            # Declare symbolic variable
+            variables_sym[variable] = sp.Symbol(variable)
+
+            # Declare symbolic function
+            exec(function + "_sym" + string[equal_idx:], globals_sym, variables_sym)
+
+            # Declare python symbolic function
+            variables_sym[function] = lambda xx: \
+                variables_sym[function + "_sym"].subs(variables_sym[variable], xx).evalf()
+
+            # Declare python eval function
+            def f_eval(xx):
+                f_x = variables_sym[function + "_sym"].subs(variables_sym[variable], xx)
+                for s in f_x.free_symbols:
+                    f_x = f_x.subs(s, variables_eval[str(s)])
+                return f_x.evalf()
+
+            variables_eval[function] = f_eval
+
+        # Else, a variable is declared
+        else:
+            # Get declared variable name
+            variable = string[:equal_idx]
+
+            # Declare symbolic variable
+            variables_sym[variable] = sp.Symbol(variable)
+
+            # Assign variable value
+            exec(string, globals_eval, variables_eval)
+            pass
 
     return output
 
@@ -68,7 +97,7 @@ def plot(root):  # TODO Clean
 
     # CREATE FUNCTION SELECTOR
     # Search function names
-    func_names = [name for name, var in variables.items() if callable(var)]
+    func_names = [name for name, var in variables_eval.items() if callable(var)]
 
     # FUNCTION FRAME
     function_frame = tk.Frame(top)
@@ -126,7 +155,7 @@ def plot(root):  # TODO Clean
         except ValueError:
             return
         # Compute curve points
-        f_eval = variables[function_name]
+        f_eval = variables_eval[function_name]
         y_list = ([sp.re(f_eval(x)) for x in x_list])
         # Update plot
         l.set_xdata(x_list)
@@ -155,5 +184,5 @@ def open_variable_window(root):
     tk.Label(top, text="Variables:", font="Calibri 16").pack(side=tk.TOP, pady=(0, 10))
 
     # Print each variable
-    for var_name, var_value in variables.items():
+    for var_name, var_value in variables_sym.items():
         tk.Label(top, text="{0} = {1}".format(var_name, str(var_value))).pack(side=tk.TOP)
