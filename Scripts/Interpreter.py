@@ -180,9 +180,12 @@ def open_variable_window(root):
     top.title("Variables")
     top.transient(root)  # Variable window is always on top of the main window
 
-    # Variables label
-    tk.Label(top, text="Variables:", font="Calibri 16").pack(side=tk.TOP, pady=(0, 10))
-
-    # Print each variable
+    # Print each function and variable
     for var_name, var_value in variables_sym.items():
-        tk.Label(top, text="{0} = {1}".format(var_name, str(var_value))).pack(side=tk.TOP)
+        # If the name ends with "_sym", this is a function
+        if var_name[-4:] == "_sym":
+            tk.Label(top, text="{0} = {1}".format(var_name[:-4], str(var_value))).pack(side=tk.TOP)
+
+        # If the variable isn't callable and exists in variables_sym and variables_eval, it's a constant
+        if not callable(var_value) and var_name in variables_eval.keys():
+            tk.Label(top, text="{0} = {1}".format(var_name, str(variables_eval[var_name]))).pack(side=tk.TOP)
