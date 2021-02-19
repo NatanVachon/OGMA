@@ -176,16 +176,34 @@ def plot(root):  # TODO Clean
 
 def open_variable_window(root):
     # Open new window
-    top = tk.Toplevel(background="Gray")
+    top = tk.Toplevel()
     top.title("Variables")
     top.transient(root)  # Variable window is always on top of the main window
 
-    # Print each function and variable
-    for var_name, var_value in variables_sym.items():
-        # If the name ends with "_sym", this is a function
-        if var_name[-4:] == "_sym":
-            tk.Label(top, text="{0} = {1}".format(var_name[:-4], str(var_value))).pack(side=tk.TOP)
+    f = Figure()
+    ax = f.add_subplot(111)
+    ax.set_axis_off()
 
-        # If the variable isn't callable and exists in variables_sym and variables_eval, it's a constant
-        if not callable(var_value) and var_name in variables_eval.keys():
-            tk.Label(top, text="{0} = {1}".format(var_name, str(variables_eval[var_name]))).pack(side=tk.TOP)
+    def display_variables():
+        ax.clear()
+        # Display title
+        ax.text(0.5, 0.9, "Variables", fontsize=16, horizontalalignment="center")
+        # Initialize y position
+        y_pos = 0.8
+        for var_name, var_value in variables_sym.items():
+            # If the name ends with "_sym", this is a function
+            if var_name[-4:] == "_sym":
+                # TODO get_latex_rpz
+                ax.text(0.1, y_pos, "${0} = {1}$".format(var_name[:-4], str(var_value)))
+                y_pos -= 0.1
+
+            # If the variable isn't callable and exists in variables_sym and variables_eval, it's a constant
+            elif not callable(var_value) and var_name in variables_eval.keys():
+                ax.text(0.1, y_pos, "${0} = {1}$".format(var_name, str(variables_eval[var_name])))
+                y_pos -= 0.1
+
+    # Display current variables
+    display_variables()
+
+    canvas = FigureCanvasTkAgg(f, top)
+    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
