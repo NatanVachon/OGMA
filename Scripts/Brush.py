@@ -12,7 +12,7 @@ class Brush:
         self.canvas = canvas
 
         # Graphics variables
-        self.width = 10
+        self.width = 7
         self.step = 0.3
         self.color = "white"  # "#FFDFC8"
         self.capstyle = tk.ROUND
