@@ -14,6 +14,14 @@ globals_sym = {"COS": sp.cos, "SIN": sp.sin, "EXP": sp.exp}
 variables_sym = {}
 variables_eval = {}
 
+variable_callbacks = {"any": []}  # Contains functions to be called when a variable is updated
+
+
+# Callback execution function
+def execute_callbacks(var):
+    for callback in variable_callbacks[var]:
+        callback()
+
 
 def get_variable_names():
     names = []
@@ -38,8 +46,6 @@ def evaluate(string, mode):
             print("Exec done")
 
     elif mode == "Declare":
-        # TODO Explain all of this
-
         # Sanity check
         assert '=' in string, "A declaration must contain a '=' character"
 
@@ -72,138 +78,230 @@ def evaluate(string, mode):
                     f_x = f_x.subs(s, variables_eval[str(s)])
                 return f_x.evalf()
 
+            # Save python function in eval variables
             variables_eval[function] = f_eval
 
-        # Else, a variable is declared
+            if function in variable_callbacks.keys():
+                # Execute function callbacks
+                execute_callbacks(function)
+            else:
+                # Create callback list for the new function
+                variable_callbacks[function] = []
+
+            # Add callbacks to each free symbol of the newly declared function
+            for symbol in variables_sym[function + "_sym"].free_symbols:
+                # Don't add callback on the function argument
+                if str(symbol) != variable:
+                    variable_callbacks[str(symbol)].append(lambda: execute_callbacks(function))
+
+        # Else, a constant is declared
         else:
-            # Get declared variable name
-            variable = string[:equal_idx]
+            # Get declared constant name
+            constant = string[:equal_idx]
 
             # Declare symbolic variable
-            variables_sym[variable] = sp.Symbol(variable)
+            variables_sym[constant] = sp.Symbol(constant)
 
-            # Assign variable value
+            # Assign constant value
             exec(string, globals_eval, variables_eval)
-            pass
+
+            if constant in variable_callbacks.keys():
+                # Execute constant callbacks
+                execute_callbacks(constant)
+            else:
+                # Create callback list for the new constant
+                variable_callbacks[constant] = []
+
+                # Add callbacks to each free symbol of the newly declared constant
+                for symbol in variables_sym[constant].free_symbols:
+                    # Avoid infinite calls
+                    if str(symbol) != constant:
+                        variable_callbacks[str(symbol)].append(lambda: execute_callbacks(constant))
+
+        # Call variable callbacks
+        execute_callbacks("any")
 
     return output
 
 
-def plot(root):  # TODO Clean
-    # Open new window
-    top = tk.Toplevel()
-    top.transient(root)  # Plot window is always on top of main window
-    top.title("Plot")
+class PlotWindow(tk.Toplevel):
+    window = None
 
-    # CREATE FUNCTION SELECTOR
-    # Search function names
-    func_names = [name for name, var in variables_eval.items() if callable(var)]
+    @staticmethod
+    def toggle(root):
+        if PlotWindow.window:
+            PlotWindow.window.destroy()
+            PlotWindow.window = None
+        else:
+            PlotWindow.window = PlotWindow(root)
 
-    # FUNCTION FRAME
-    function_frame = tk.Frame(top)
-    function_frame.pack(side=tk.TOP)
-    # Function choose label
-    tk.Label(function_frame, text="Plotted function").pack(side=tk.TOP)
-    # Function choose dropdown
-    string_var = tk.StringVar()
-    if len(func_names) > 0:
-        string_var.set(func_names[0])
-    string_var.trace("w", lambda *args: plot_func())
-    tk.OptionMenu(function_frame, string_var, '', *func_names).pack(side=tk.TOP)
+    def __init__(self, root, **kw):
+        # Super class initialization
+        super().__init__(**kw)
 
-    # PLOT RANGE FRAME
-    range_frame = tk.Frame(top)
-    range_frame.pack(side=tk.TOP)
-    # Min value label and entry
-    tk.Label(range_frame, text="x_min:").pack(side=tk.LEFT)
-    min_var = tk.StringVar(value="-10.0")
-    min_var.trace("w", lambda *args: plot_func())  # Update plot on min modification
-    min_entry = tk.Entry(range_frame, textvariable=min_var)
-    min_entry.pack(side=tk.LEFT)
-    # Max value label and entry
-    tk.Label(range_frame, text="x_max:").pack(side=tk.LEFT)
-    max_var = tk.StringVar(value="10.0")
-    max_var.trace("w", lambda *args: plot_func())  # Update plot on max modification
-    max_entry = tk.Entry(range_frame, textvariable=max_var)
-    max_entry.pack(side=tk.LEFT)
-    # Point nb label and entry
-    tk.Label(range_frame, text="Point nb:").pack(side=tk.LEFT)
-    point_nb_var = tk.StringVar(value="100")
-    point_nb_var.trace("w", lambda *args: plot_func())  # Update plot on step modification
-    point_nb_entry = tk.Entry(range_frame, textvariable=point_nb_var)
-    point_nb_entry.pack(side=tk.LEFT)
+        # Configure new window
+        self.transient(root)  # Plot window is always on top of main window
+        self.title("Plot")
+        self.bind('p', lambda event: self.destroy())
 
-    # Create plot
-    f = Figure()
-    a = f.add_subplot(111)
-    a.grid()
-    l, = a.plot([], [])
+        # Initialize plotted function name
+        self.function_name = ""
 
-    # Create and assign function name change callback
-    def plot_func():
-        # Get plotted function
-        function_name = string_var.get()
+        # CREATE FUNCTION SELECTOR
+        # Search function names
+        func_names = [name for name, var in variables_eval.items() if callable(var)]
+
+        # FUNCTION FRAME
+        function_frame = tk.Frame(self)
+        function_frame.pack(side=tk.TOP)
+        # Function choose label
+        tk.Label(function_frame, text="Plotted function").pack(side=tk.TOP)
+        # Function choose dropdown
+        self.function_name_var = tk.StringVar()
+        if len(func_names) > 0:
+            self.function_name_var.set(func_names[0])
+        self.function_name_var.trace("w", lambda *args: self.plot_function())
+        tk.OptionMenu(function_frame, self.function_name_var, '', *func_names).pack(side=tk.TOP)
+
+        # PLOT RANGE FRAME
+        range_frame = tk.Frame(self)
+        range_frame.pack(side=tk.TOP)
+        # Min value label and entry
+        tk.Label(range_frame, text="x_min:").pack(side=tk.LEFT)
+        self.min_var = tk.StringVar(value="-10.0")
+        self.min_var.trace("w", lambda *args: self.plot_function())  # Update plot on min modification
+        min_entry = tk.Entry(range_frame, textvariable=self.min_var)
+        min_entry.pack(side=tk.LEFT)
+        # Max value label and entry
+        tk.Label(range_frame, text="x_max:").pack(side=tk.LEFT)
+        self.max_var = tk.StringVar(value="10.0")
+        self.max_var.trace("w", lambda *args: self.plot_function())  # Update plot on max modification
+        max_entry = tk.Entry(range_frame, textvariable=self.max_var)
+        max_entry.pack(side=tk.LEFT)
+        # Point nb label and entry
+        tk.Label(range_frame, text="Point nb:").pack(side=tk.LEFT)
+        self.point_nb_var = tk.StringVar(value="100")
+        self.point_nb_var.trace("w", lambda *args: self.plot_function())  # Update plot on step modification
+        point_nb_entry = tk.Entry(range_frame, textvariable=self.point_nb_var)
+        point_nb_entry.pack(side=tk.LEFT)
+
+        # Create plot
+        self.f = Figure()
+        self.a = self.f.add_subplot(111)
+        self.a.grid()
+        self.l, = self.a.plot([], [])
+
+        # Plot function
+        self.plot_function()
+
+        # Create canvas
+        canvas = FigureCanvasTkAgg(self.f, self)
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def plot_function(self):
+        # Remove function callback
+        if self.function_name != "":
+            variable_callbacks[self.function_name].remove(self.plot_function)
+
+        # Get new function name
+        self.function_name = self.function_name_var.get()
+
+        # Add function callback
+        if self.function_name != "":
+            variable_callbacks[self.function_name].append(self.plot_function)
 
         # Plotted function sanity check
-        if function_name == '':
+        if self.function_name == '':
             return
 
         # Compute plot range
         # Catch value error in case of invalid input
         try:
-            x_list = np.linspace(float(min_var.get()), float(max_var.get()), int(point_nb_var.get()))
+            x_list = np.linspace(float(self.min_var.get()), float(self.max_var.get()), int(self.point_nb_var.get()))
         except ValueError:
             return
         # Compute curve points
-        f_eval = variables_eval[function_name]
+        f_eval = variables_eval[self.function_name]
         y_list = ([sp.re(f_eval(x)) for x in x_list])
         # Update plot
-        l.set_xdata(x_list)
-        l.set_ydata(y_list)
-        a.set_title(function_name)
-        a.relim()
-        a.autoscale_view()
-        f.canvas.draw()
-        f.canvas.flush_events()
+        self.l.set_xdata(x_list)
+        self.l.set_ydata(y_list)
+        self.a.set_title(self.function_name)
+        self.a.relim()
+        self.a.autoscale_view()
+        self.f.canvas.draw()
+        self.f.canvas.flush_events()
 
-    # Plot function
-    plot_func()
+    def destroy(self):
+        # Remove function callback
+        if self.function_name != "":
+            variable_callbacks[self.function_name].remove(self.plot_function)
 
-    # Create canvas
-    canvas = FigureCanvasTkAgg(f, top)
-    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        # Destroy window
+        super().destroy()
 
 
-def open_variable_window(root):
+def toggle_variable_window(root):
+    # Check not to raise error
+    if not hasattr(toggle_variable_window, "top"):
+        toggle_variable_window.top = None
+
+    # Define destroy function
+    def destroy():
+        toggle_variable_window.top.destroy()
+        toggle_variable_window.top = None
+        # Add display function to variables callback
+        variable_callbacks["any"].remove(display_variables)
+
+    # If window is already open, close it
+    if toggle_variable_window.top:
+        destroy()
+        return
+
     # Open new window
-    top = tk.Toplevel()
-    top.title("Variables")
-    top.transient(root)  # Variable window is always on top of the main window
+    toggle_variable_window.top = tk.Toplevel()
+    toggle_variable_window.top.title("Variables")
+    toggle_variable_window.top.transient(root)  # Variable window is always on top of the main window
+    # Set window geometry
+    w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+    toggle_variable_window.top.geometry("{0}x{1}+{2}+{3}".format(int(0.1 * w), int(0.5 * h), int(0.9 * w), 10))
+    # Bind destroy
+    toggle_variable_window.top.bind('v', lambda event: destroy())
 
+    # Create figure
     f = Figure()
     ax = f.add_subplot(111)
-    ax.set_axis_off()
 
+    # Define display function
     def display_variables():
         ax.clear()
-        # Display title
-        ax.text(0.5, 0.9, "Variables", fontsize=16, horizontalalignment="center")
+        ax.set_axis_off()
         # Initialize y position
-        y_pos = 0.8
+        y_pos = 1.0
         for var_name, var_value in variables_sym.items():
             # If the name ends with "_sym", this is a function
             if var_name[-4:] == "_sym":
                 # TODO get_latex_rpz
-                ax.text(0.1, y_pos, "${0} = {1}$".format(var_name[:-4], str(var_value)))
+                var_value_str = str(var_value).replace('**', '^').replace('*', '')  # TODO REMOVE
+                ax.text(0.1, y_pos, "${0} = {1}$".format(var_name[:-4], var_value_str), fontsize=16)
                 y_pos -= 0.1
 
             # If the variable isn't callable and exists in variables_sym and variables_eval, it's a constant
             elif not callable(var_value) and var_name in variables_eval.keys():
-                ax.text(0.1, y_pos, "${0} = {1}$".format(var_name, str(variables_eval[var_name])))
+                var_value_str = str(variables_eval[var_name]).replace('**', '^').replace('*', '')  # TODO REMOVE
+                ax.text(0.1, y_pos, "${0} = {1}$".format(var_name, var_value_str), fontsize=16)
                 y_pos -= 0.1
+
+        # Update figure
+        f.canvas.draw()
+        f.canvas.flush_events()
+
+    # Add display function to variables callback
+    variable_callbacks["any"].append(display_variables)
 
     # Display current variables
     display_variables()
 
-    canvas = FigureCanvasTkAgg(f, top)
+    # Create canvas
+    canvas = FigureCanvasTkAgg(f, toggle_variable_window.top)
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)

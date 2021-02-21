@@ -41,12 +41,12 @@ class App:
         self.window.bind("<Control-z>", lambda event: self.undo())
 
         # Initialize plot button callback
-        plot_button.configure(command=lambda: ip.plot(self.window))
+        plot_button.configure(command=lambda: ip.PlotWindow.toggle(self.window))
 
         # Initialize interpreter binds
         self.window.bind('e', lambda event: self.evaluate())
-        self.window.bind('p', lambda event: ip.plot(self.window))
-        self.window.bind('v', lambda event: ip.open_variable_window(self.window))
+        self.window.bind('p', lambda event: ip.PlotWindow.toggle(self.window))
+        self.window.bind('v', lambda event: ip.toggle_variable_window(self.window))
 
         # Initialize right click menu for mode selection
         self.right_click_menu = tk.Menu(self.window, tearoff=False)
