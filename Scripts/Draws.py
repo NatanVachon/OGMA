@@ -1,25 +1,10 @@
-import numpy as np
 import tkinter as tk
 
+from Box import Box
 import ImageRecognition as ir
 from Page import Book
-from FormulaRepresentation import get_python_rpz
+import FormulaRepresentation as fr
 import Interpreter as ip
-
-
-class Box:
-    def __init__(self, x1, y1, x2, y2):
-        self.center = np.array([0.5 * (x1 + x2), 0.5 * (y1 + y2)])
-        self.width = x2 - x1
-        self.height = y2 - y1
-
-    def is_intersecting(self, new_box):
-        return (abs(self.center[0] - new_box.center[0]) * 2.0 < (self.width + new_box.width)) and (
-                abs(self.center[1] - new_box.center[1]) * 2.0 < (self.height + new_box.height))
-
-    def get_bounds(self):
-        return self.center[0] - 0.5 * self.width, self.center[1] - 0.5 * self.height, \
-               self.center[0] + 0.5 * self.width, self.center[1] + 0.5 * self.height
 
 
 class Line(Box):
@@ -61,6 +46,7 @@ class Character(Box):
         super().__init__(bounds[0], bounds[1], bounds[2], bounds[3])
         self.lines = []
         self.prediction = ""
+        self.pow = []
 
         # Add first line
         self.add_line(line)
@@ -96,6 +82,17 @@ class Character(Box):
             if not line.is_valid:
                 self.lines.remove(line)
                 del line
+
+    def __str__(self):
+        out = self.prediction
+
+        if len(self.pow) > 0:
+            out += "**("
+            for s in self.pow:
+                out += str(s)
+            out += ")"
+
+        return out
 
 
 class Formula(Box):
@@ -151,7 +148,8 @@ class Formula(Box):
 
         # Update entry
         self.entry.place(x=self.center[0] - 0.5 * self.width, y=self.center[1] + 0.6 * self.height)
-        self.entry_text.set(get_python_rpz(self, ip.get_variable_names()))
+        #self.entry_text.set(fr.get_python_rpz(self, ip.get_variable_names()))
+        self.entry_text.set(fr.get_python_rpz(self, ip.get_variable_names()))
 
     def avoid_confusion(self):
         # If length is lower than two, no confusion is avoidable
@@ -161,11 +159,13 @@ class Formula(Box):
         # Get two last characters
         char, p_char = self.chars[-1], self.chars[-2]
 
-        # Check if the last two characters are -- to make it a =
+        # Check if the last two characters are -- and are more or less on the same vertical axis,
+        # make it a =
         if char.prediction == '-' and p_char.prediction == '-':
-            p_char.absorb(char)
-            p_char.prediction = '='
-            self.chars.remove(char)
+            if abs(char.width - p_char.width) / min(char.width, p_char.width) < 0.4:
+                p_char.absorb(char)
+                p_char.prediction = '='
+                self.chars.remove(char)
 
         # Check if the last character is a - below the last character
         elif char.prediction == '-' and char.center[1] > p_char.center[1] + 0.5 * p_char.height:
@@ -180,7 +180,7 @@ class Formula(Box):
         elif char.prediction == '5' and is_letter(p_char.prediction):
             char.prediction = 'S'
 
-    def get_prediction(self):
+    def __str__(self):
         prediction = ""
         for char in self.chars:
             prediction += char.prediction

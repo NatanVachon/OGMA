@@ -1,4 +1,5 @@
 from re import finditer
+from Box import Box
 
 
 # Expression types
@@ -7,12 +8,14 @@ LETTER = 1
 MATH = 2
 PARENTHESIS = 3
 
+# Stringable means a string conversion is possible
+
 
 class Expression:
     def __init__(self, char):
         self.type = get_type(char)
-        self.base = ""  # Expression string representation
-        self.power = []  # Power expressions list
+        self.base = []  # Strigable elements list
+        self.power = []  # Power strigable elements list
 
         self.add_char(char)
 
@@ -20,149 +23,50 @@ class Expression:
         self.base += char
         pass
 
+    def __str__(self):
+        out = ""
+        for s in self.base:
+            out += str(s)
+        out += "**("
+        for s in self.power:
+            out += str(s)
+        out += ")"
+        return out
 
-class Fraction:
+
+class Fraction(Box):
     def __init__(self, num, den):
-        self.num = num
-        self.den = den
+        self.num = num  # Num expression
+        self.den = den  # Den expression
 
+        # Compute bounds
+        x1, y1, x2, y2 = num[0].get_bounds()
+        for box in num + den:
+            box_x1, box_y1, box_x2, box_y2 = box.get_bounds()
+            x1 = min(x1, box_x1)
+            y1 = min(y1, box_y1)
+            x2 = max(x2, box_x2)
+            y2 = max(y2, box_y2)
+        super().__init__(x1, y1, x2, y2)
 
-def get_python_rpz(formula, declared_variables):
-    """ This function is used to get a python format equation from a graphical format. For instance:
+    def __str__(self):
+        # Split powers
+        self.num = split_power(self.num)
+        self.den = split_power(self.den)
 
-                    2x² + 1
-            f(x) =  ------  gives  f(x)=(2*x**(2)+1)/(3*x+2)
-                    3x + 2
-
-        For the moment, this handles no fraction.
-    """
-
-    # Sort declared variable by length because in the expression search we will look for larger expressions first
-    declared_variables.sort(key=len, reverse=True)
-
-    # Split formula in several expressions. An expression is a succession of non-separated characters of the same type
-    # (digit, letter, math expression or parenthesis)
-
-    # exp: Currently updated expression
-    # base_expressions: List of expression in the main line of the formula
-    # expressions: Currently updated list of expressions (can be base_expressions or a power of an expression)
-    exp = Expression(formula.chars[0].prediction)
-    base_expressions = [exp]
-    expressions = base_expressions
-
-    # power: Flag to know if we are updating a power expression or the base expression (useless but clearer)
-    # power_box: Reference Box to check if the next added character is a power or not
-    power = False  # Are we creating a power expression
-    power_box = formula.chars[0]  # Base box reference when creating power expressions
-
-    # Iterate through each character and add them in an expression
-    for i in range(len(formula.chars) - 1):
-        next_char = formula.chars[i + 1]
-
-        # Handle powers
-        if power:
-            if not is_power(power_box, next_char):
-                # Stop power mode
-                power = False
-                new_exp = Expression(next_char.prediction)
-                exp = new_exp
-                # Update power box because to know if a character is a power, we check its position relative to the
-                # previous one
-                power_box = next_char
-                # Updated list of expressions is now the base expression
-                base_expressions.append(exp)
-                expressions = base_expressions
-                continue
-
-        else:
-            if is_power(power_box, next_char):
-                # Power begin
-                power = True
-                new_exp = Expression(next_char.prediction)
-                exp.power = [new_exp]
-
-                # Updated list of expressions is now a power expression
-                expressions = exp.power
-                exp = new_exp
-                continue
-
-            else:
-                # Update power box because to know if a character is a power, we check its position relative to the
-                # previous one
-                power_box = formula.chars[i + 1]
-
-        # Handle expressions
-        # If the type is the same, add the next character to expression, else create a new expression
-        if exp.type == DIGIT:
-            if is_digit(next_char.prediction):
-                exp.add_char(next_char.prediction)
-            else:
-                exp = Expression(next_char.prediction)
-                expressions.append(exp)
-
-        elif exp.type == LETTER:
-            # Stop expression if the next character isn't a letter
-            if is_letter(next_char.prediction):
-                exp.add_char(next_char.prediction)
-            else:
-                # Create a new expression
-                exp = Expression(next_char.prediction)
-                expressions.append(exp)
-
-        else:  # exp_type == MATH or exp_type == PARENTHESIS
-            # Math symbols and parenthesis are alone in their expression
-            exp = Expression(next_char.prediction)
-            expressions.append(exp)
-
-    # Split letter expressions by adding multiplications, for instance: 2acos becomes 2*a*cos
-    # To do so, we look to the previously declared variables
-    for exp in base_expressions:
-        if exp.type == LETTER:
-            exp.base = split_letter_expression(exp.base, declared_variables)
-
-    # Add powers to the base strings
-    for exp in base_expressions:
-        if len(exp.power) > 0:
-            power_str = ""
-            for pow_exp in exp.power:
-                power_str += pow_exp.base
-            exp.base += "**(" + power_str + ')'
-
-    # Add multiply between expressions
-    python_string = base_expressions[0].base
-    for i in range(1, len(base_expressions)):
-        # Successions of DIGIT <-> LETTER, PARENTHESIS -> PARENTHESIS or LETTER -> LETTER have a multiplication between
-        succession = {base_expressions[i - 1].type, base_expressions[i].type}
-        if succession == {DIGIT, LETTER} or succession == {PARENTHESIS, PARENTHESIS} or succession == {LETTER, LETTER}:
-            # Add multiply between base expressions
-            python_string += "*" + base_expressions[i].base
-        else:
-            python_string += base_expressions[i].base
-
-    # TODO REMOVE LATER
-    # We are looking for patterns like *1*...*1 with minimal number of characters in "..." to replace by (...)
-    parenthesis = finditer(r"(\*1\*.{1," + str(len(python_string)) + r"}?\*1)", python_string)
-    python_list = list(python_string)
-
-    for par in parenthesis:
-        python_list[par.start()] = ''
-        python_list[par.start() + 1] = ''
-        python_list[par.start() + 2] = '('
-        python_list[par.end() - 2] = ''
-        python_list[par.end() - 1] = ')'
-
-    python_list = filter(lambda c: c != '', python_list)
-
-    python_string = ""
-    for char in python_list:
-        python_string += char
-
-    return python_string
+        out = "("
+        for s in self.num:
+            out += str(s)
+        out += ")/("
+        for s in self.den:
+            out += str(s)
+        out += ")"
+        return out
 
 
 def split_letter_expression(string, declared_variables):
-    """ Split letter expressions by adding multiplications, for instance: 2acos becomes 2*a*cos.
-        We use the list of previously declared variables to find them and surround them with parenthesis."""
+    """ Split letter expressions by adding multiplications, for instance: abcos becomes a*b*cos.
+        We use the list of previously declared variables to find them and surround them with multiplications."""
     # Mark expression bounds
     bounds = []  # Contains blocked indexes
 
@@ -189,6 +93,208 @@ def split_letter_expression(string, declared_variables):
     return final_string
 
 
+def classify_horizontal_lines(formula):
+    """ This function checks if a '-' character is a minus or a divide """
+
+    for i in range(len(formula.chars)):
+        char = formula.chars[i]
+        if char.prediction == '-':
+            # Search the closest character over the horizontal line
+            min_distance, closest = float('inf'), None
+            for o_char in formula.chars:
+                if o_char == char:
+                    continue
+                if o_char.center[1] < char.center[1] and o_char.center[0] - 0.5 * o_char.width >= char.center[0] - 0.5 * char.width and \
+                        o_char.center[0] + 0.5 * o_char.width <= char.center[0] + 0.5 * char.width:
+
+                    # Compute distance to the next '-' to search the closest
+                    if char.center[1] - o_char.center[1] < min_distance:
+                        min_distance = char.center[1] - o_char.center[1]
+                        closest = o_char
+
+            # If the closest character over is a digit or a letter, this character is a division
+            if get_type(closest.prediction) in [DIGIT, LETTER]:
+                formula.chars[i].prediction = '/'
+
+    return formula
+
+
+def get_python_rpz(formula, declared_variables):
+    # TODO HORIZONTAL LINES
+
+    s_list = clean_power(formula.chars)
+
+    s_list = split_divide(s_list)
+
+    s_list = split_power(s_list)
+
+    python_string = ""
+    for s in s_list:
+        python_string += str(s)
+
+    python_string = split_multiply(python_string, declared_variables)
+
+    # TODO REMOVE LATER
+    # We are looking for patterns like *1*...*1 with minimal number of characters in "..." to replace by (...)
+    parenthesis = finditer(r"(\*1\*.{1," + str(len(python_string)) + r"}?\*1)", python_string)
+    python_list = list(python_string)
+
+    for par in parenthesis:
+        python_list[par.start()] = ''
+        python_list[par.start() + 1] = ''
+        python_list[par.start() + 2] = '('
+        python_list[par.end() - 2] = ''
+        python_list[par.end() - 1] = ')'
+
+    python_list = [c for c in python_list if c != '']
+
+    python_string = ""
+    for char in python_list:
+        python_string += char
+
+    return python_string
+
+
+def split_multiply(string, declared_variables):
+    output = ""
+    prev_char, prev_type = string[0], get_type(string[0])
+
+    # Letter expression split variables, used to split letter expressions
+    begin = 0
+    is_letter_exp = False
+
+    # Handle first char
+    if prev_type == LETTER:
+        is_letter_exp = True
+    else:
+        output += prev_char
+
+    for i in range(1, len(string)):
+        char, current_type = string[i], get_type(string[i])
+
+        if is_letter_exp and current_type != LETTER:
+            output += split_letter_expression(string[begin:i], declared_variables)
+            is_letter_exp = False
+
+        # Add multiply separation
+        if (prev_char == ')' and char == '(') or {prev_type, current_type} == {DIGIT, LETTER}:
+            output += '*'
+
+        # Look for letter successions
+        if not is_letter_exp:
+            if current_type == LETTER:
+                begin = i
+                is_letter_exp = True
+            else:
+                output += char
+
+        prev_char, prev_type = char, current_type
+
+    # Split last letter expression if necessary
+    if is_letter_exp:
+        output += split_letter_expression(string[begin:], declared_variables)
+
+    return output
+
+
+def clean_power(s_list):
+    for s in s_list:
+        if type(s) is Fraction:
+            s.num = clean_power(s.num)
+            s.den = clean_power(s.den)
+        else:
+            s.pow.clear()
+
+    return s_list
+
+
+def split_power(s_list):
+    if len(s_list) == 0:
+        return []
+
+    # Sort stringables from left to right
+    s_list.sort(key=lambda u: u.x)
+
+    power_box = s_list[0]
+
+    output_list = []
+
+    # TODO Currently supports one degree of power
+    for i in range(1, len(s_list)):
+        s = s_list[i]
+        # TODO Dont try to put powers on math symbols
+
+        if type(s) is Fraction:
+            s.num = split_power(s.num)
+            s.den = split_power(s.den)
+
+            output_list.append(power_box)
+            power_box = s
+        else:
+            # If power box is a fraction, just add it to the list and continue
+            if type(power_box) is Fraction:
+                output_list.append(power_box)
+                power_box = s
+                continue
+
+            # s is a char
+            if not is_math_symbol(power_box.prediction) and is_power(power_box, s):
+                power_box.pow.append(s)
+            else:
+                output_list.append(power_box)
+                power_box = s
+
+    output_list.append(power_box)
+    return output_list
+
+
+def split_divide(s_list):
+    # Get every divide character sorted by length
+    divides = [char for char in s_list if char.prediction == '/']
+    divides.sort(key=lambda c: c.width)
+
+    # Create base stringable list
+    s_list = [char for char in s_list if char.prediction != '/']
+
+    # Create fractions
+    for divide in divides:
+        # Elements in the numerator are elements between this divide and the next above
+        # Elements in the denominator are elements between this divide and the next below
+        top_lim, bot_lim = 0, float('inf')
+        # Check for each divide if one is above and below the current one
+        for o_divide in divides:
+            if o_divide == divide:
+                continue
+            if o_divide.left <= divide.left and o_divide.right >= divide.right:
+                # On the same x box
+                if o_divide.y < divide.y and divide.y - o_divide.y < top_lim:
+                    # Other divide is above and closer
+                    top_lim = divide.y - o_divide.y
+                elif o_divide.y > divide.y and o_divide.y - divide.y < bot_lim:
+                    # Other divide is below and closer
+                    bot_lim = o_divide.y - divide.y
+
+        # Isolate stringables above and below
+        above, below = [], []
+        for stringable in s_list:
+            if stringable.left >= divide.left and stringable.right <= divide.right:
+                if stringable.y < divide.y:
+                    above.append(stringable)
+                else:
+                    below.append(stringable)
+
+        # Create fraction
+        fraction = Fraction(above, below)
+
+        # Replace stringables by the new fraction
+        s_list.insert(s_list.index(above[0]), fraction)
+        for s in above + below:
+            s_list.remove(s)
+
+    # Return stringable list
+    return s_list
+
+
 # Character type checks
 def is_digit(char):
     return ord('0') <= ord(char) <= ord('9')
@@ -199,7 +305,7 @@ def is_letter(char):
 
 
 def is_math_symbol(char):
-    return char in ['-', '+', '/', '=']
+    return char in ['-', '+', '/', '*', '=']
 
 
 def is_parenthesis(char):
@@ -220,6 +326,6 @@ def get_type(char):
         raise AttributeError("Character " + char + " doesnt exists")
 
 
-def is_power(char, next_char):
+def is_power(power_box, next_char):
     """ Checks if next_char is a power of char """
-    return char.center[1] - 0.5 * char.height >= next_char.center[1] + 0.5 * next_char.height
+    return power_box.top >= next_char.bottom
