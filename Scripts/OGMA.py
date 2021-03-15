@@ -53,6 +53,7 @@ class App:
         self.right_click_menu.add_command(label="Free", command=lambda: self.set_mode("Free"))
         self.right_click_menu.add_command(label="Eval", command=lambda: self.set_mode("Eval"))
         self.right_click_menu.add_command(label="Declare", command=lambda: self.set_mode("Declare"))
+        self.right_click_menu.add_command(label="Solve", command=lambda: self.set_mode("Solve"))
 
         # BRUSH
         # Initialize brush

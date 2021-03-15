@@ -9,8 +9,8 @@ import numpy as np
 import sympy as sp
 
 
-globals_eval = {"COS": np.cos, "SIN": np.sin, "EXP": np.exp}
-globals_sym = {"COS": sp.cos, "SIN": sp.sin, "EXP": sp.exp}
+globals_eval = {"COS": np.cos, "SIN": np.sin, "EXP": np.exp, "LOG": np.log}
+globals_sym = {"COS": sp.cos, "SIN": sp.sin, "EXP": sp.exp, "LOG": sp.log}
 variables_sym = {}
 variables_eval = {}
 
@@ -121,6 +121,20 @@ def evaluate(string, mode):
         # Call variable callbacks
         execute_callbacks("any")
 
+    elif mode == "Solve":
+        # TODO For the moment, the unknown variable is always X
+        # Declare unknown variable
+        variables_sym['X'] = sp.Symbol('X')
+
+        # Evaluate equation
+        equal_idx = string.find('=')
+        equation = "_solve = " + string[:equal_idx] + "-" + string[equal_idx+1:]
+        exec(equation, globals_sym, variables_sym)
+
+        # Compute solution
+        output = sp.solve(variables_sym["_solve"], variables_sym['X'])
+        print(output)
+
     return output
 
 
@@ -143,6 +157,7 @@ class PlotWindow(tk.Toplevel):
         self.transient(root)  # Plot window is always on top of main window
         self.title("Plot")
         self.bind('p', lambda event: self.destroy())
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
 
         # Initialize plotted function name
         self.function_name = ""
@@ -200,7 +215,7 @@ class PlotWindow(tk.Toplevel):
 
     def plot_function(self):
         # Remove function callback
-        if self.function_name != "":
+        if self.function_name != "" and self.plot_function in variable_callbacks[self.function_name]:
             variable_callbacks[self.function_name].remove(self.plot_function)
 
         # Get new function name
@@ -234,7 +249,7 @@ class PlotWindow(tk.Toplevel):
 
     def destroy(self):
         # Remove function callback
-        if self.function_name != "":
+        if self.function_name != "" and self.plot_function in variable_callbacks[self.function_name]:
             variable_callbacks[self.function_name].remove(self.plot_function)
 
         # Destroy window
@@ -242,35 +257,12 @@ class PlotWindow(tk.Toplevel):
 
 
 def toggle_variable_window(root):
-    # Check not to raise error
-    if not hasattr(toggle_variable_window, "top"):
-        toggle_variable_window.top = None
-
     # Define destroy function
     def destroy():
         toggle_variable_window.top.destroy()
         toggle_variable_window.top = None
         # Add display function to variables callback
         variable_callbacks["any"].remove(display_variables)
-
-    # If window is already open, close it
-    if toggle_variable_window.top:
-        destroy()
-        return
-
-    # Open new window
-    toggle_variable_window.top = tk.Toplevel()
-    toggle_variable_window.top.title("Variables")
-    toggle_variable_window.top.transient(root)  # Variable window is always on top of the main window
-    # Set window geometry
-    w, h = root.winfo_screenwidth(), root.winfo_screenheight()
-    toggle_variable_window.top.geometry("{0}x{1}+{2}+{3}".format(int(0.1 * w), int(0.5 * h), int(0.9 * w), 10))
-    # Bind destroy
-    toggle_variable_window.top.bind('v', lambda event: destroy())
-
-    # Create figure
-    f = Figure()
-    ax = f.add_subplot(111)
 
     # Define display function
     def display_variables():
@@ -295,6 +287,29 @@ def toggle_variable_window(root):
         # Update figure
         f.canvas.draw()
         f.canvas.flush_events()
+
+    # Check not to raise error
+    if not hasattr(toggle_variable_window, "top"):
+        toggle_variable_window.top = None
+
+    # If window is already open, close it
+    if toggle_variable_window.top:
+        destroy()
+        return
+
+    # Open new window
+    toggle_variable_window.top = tk.Toplevel()
+    toggle_variable_window.top.title("Variables")
+    toggle_variable_window.top.transient(root)  # Variable window is always on top of the main window
+    # Set window geometry
+    w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+    toggle_variable_window.top.geometry("{0}x{1}+{2}+{3}".format(int(0.1 * w), int(0.5 * h), int(0.9 * w), 10))
+    # Bind destroy
+    toggle_variable_window.top.bind('v', lambda event: destroy())
+
+    # Create figure
+    f = Figure()
+    ax = f.add_subplot(111)
 
     # Add display function to variables callback
     variable_callbacks["any"].append(display_variables)
