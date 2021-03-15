@@ -148,7 +148,6 @@ class Formula(Box):
 
         # Update entry
         self.entry.place(x=self.center[0] - 0.5 * self.width, y=self.center[1] + 0.6 * self.height)
-        #self.entry_text.set(fr.get_python_rpz(self, ip.get_variable_names()))
         self.entry_text.set(fr.get_python_rpz(self, ip.get_variable_names()))
 
     def avoid_confusion(self):
@@ -166,11 +165,6 @@ class Formula(Box):
                 p_char.absorb(char)
                 p_char.prediction = '='
                 self.chars.remove(char)
-
-        # Check if the last character is a - below the last character
-        elif char.prediction == '-' and char.center[1] > p_char.center[1] + 0.5 * p_char.height:
-            # Char is a straight line below the last character, it is a division bar
-            char.prediction = '/'
 
         # Check if the last two characters are a letter and 0 (not possible) to avoid 0 and O confusion
         elif char.prediction == '0' and is_letter(p_char.prediction):

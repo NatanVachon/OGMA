@@ -113,25 +113,30 @@ def classify_horizontal_lines(formula):
                         closest = o_char
 
             # If the closest character over is a digit or a letter, this character is a division
-            if get_type(closest.prediction) in [DIGIT, LETTER]:
+            if closest and get_type(closest.prediction) in [DIGIT, LETTER]:
                 formula.chars[i].prediction = '/'
 
     return formula
 
 
 def get_python_rpz(formula, declared_variables):
-    # TODO HORIZONTAL LINES
+    # For each horizontal line, check if it is a division or not
+    formula = classify_horizontal_lines(formula)
 
+    # Remove every power from expressions
     s_list = clean_power(formula.chars)
 
+    # Create divisions
     s_list = split_divide(s_list)
 
+    # Add powers to expressions
     s_list = split_power(s_list)
 
     python_string = ""
     for s in s_list:
         python_string += str(s)
 
+    # Add implicit multiplications fo the final string
     python_string = split_multiply(python_string, declared_variables)
 
     # TODO REMOVE LATER
