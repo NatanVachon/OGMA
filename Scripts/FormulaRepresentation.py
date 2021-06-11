@@ -233,8 +233,12 @@ def split_power(s_list):
             s.num = split_power(s.num)
             s.den = split_power(s.den)
 
-            output_list.append(power_box)
-            power_box = s
+            # Check if the fraction is in the power
+            if is_power(power_box, s):
+                power_box.pow.append(s)
+            else:
+                output_list.append(power_box)
+                power_box = s
         else:
             # If power box is a fraction, just add it to the list and continue
             if type(power_box) is Fraction:
