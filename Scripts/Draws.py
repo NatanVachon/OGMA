@@ -42,29 +42,16 @@ class Line(Box):
 class Character(Box):
     def __init__(self, line):
         # Initialize class instance
-        bounds = line.get_bounds()
-        super().__init__(bounds[0], bounds[1], bounds[2], bounds[3])
-        self.lines = []
-        self.prediction = ""
-        self.pow = []
-
-        # Add first line
-        self.add_line(line)
+        super().__init__(line)
+        self.lines = [line]
+        self.prediction = ir.predict(self)
 
     def add_line(self, new_line):
         # Add new line to line list
         self.lines.append(new_line)
 
         # Recompute bounds
-        x_min_char, y_min_char, x_max_char, y_max_char = self.get_bounds()
-        x_min_line, y_min_line, x_max_line, y_max_line = new_line.get_bounds()
-        x_min, x_max = min(x_min_char, x_min_line), max(x_max_char, x_max_line)
-        y_min, y_max = min(y_min_char, y_min_line), max(y_max_char, y_max_line)
-
-        self.center[0] = 0.5 * (x_min + x_max)
-        self.center[1] = 0.5 * (y_min + y_max)
-        self.width = x_max - x_min
-        self.height = y_max - y_min
+        self.merge_box(new_line)
 
         # Update prediction
         self.predict()
@@ -98,8 +85,7 @@ class Character(Box):
 class Formula(Box):
     def __init__(self, line, mode):
         # Initialize class instance
-        bounds = line.get_bounds()
-        super().__init__(bounds[0], bounds[1], bounds[2], bounds[3])
+        super().__init__(line)
 
         # Initialize characters list
         self.chars = []
