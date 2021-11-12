@@ -5,6 +5,7 @@ import ImageRecognition as ir
 from Page import Book
 import FormulaRepresentation as fr
 import Interpreter as ip
+from ExpressionTypes import *
 
 
 class Line(Box):
@@ -70,16 +71,20 @@ class Character(Box):
                 self.lines.remove(line)
                 del line
 
+    def get_type(self):
+        if is_digit(self.prediction):
+            return DIGIT
+        elif is_letter(self.prediction):
+            return LETTER
+        elif is_math_symbol(self.prediction):
+            return MATH
+        elif is_parenthesis(self.prediction):
+            return PARENTHESIS
+        else:
+            raise AttributeError("Character " + self.prediction + " doesnt exists")
+
     def __str__(self):
-        out = self.prediction
-
-        if len(self.pow) > 0:
-            out += "**("
-            for s in self.pow:
-                out += str(s)
-            out += ")"
-
-        return out
+        return self.prediction
 
 
 class Formula(Box):
@@ -124,13 +129,13 @@ class Formula(Box):
         y_min = min(self.center[1] - 0.5 * self.height, last_char.center[1] - 1.5 * last_char.height)
         y_max = max(self.center[1] + 0.5 * self.height, last_char.center[1] + 1.5 * last_char.height)
 
-        # Update rectangles
-        Book.canvas.coords(self.rectangle, x_min, y_min, x_max, y_max)
-
         # Update box parameters
         self.center = [0.5 * (x_min + x_max), 0.5 * (y_min + y_max)]
         self.width = x_max - x_min
         self.height = y_max - y_min
+
+        # Update rectangles
+        Book.canvas.coords(self.rectangle, x_min, y_min, x_max, y_max)
 
         # Update entry
         self.entry.place(x=self.center[0] - 0.5 * self.width, y=self.center[1] + 0.6 * self.height)
@@ -225,8 +230,3 @@ class BlackBoard:
             return self.formulas[-1]
         else:
             return None
-
-
-# Utility functions
-def is_letter(char):
-    return ord('A') <= ord(char) <= ord("Z")
