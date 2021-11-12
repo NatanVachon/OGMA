@@ -95,8 +95,7 @@ class App:
 
     def evaluate(self):
         last_formula = self.book.get_last_formula()
-        #python_string = fr.get_python_rpz(last_formula, ip.get_variable_names()) TODO
-        python_string = fr.get_python_rpz(last_formula)
+        python_string = fr.get_python_rpz(last_formula, ip.get_variable_names())
 
         ip.evaluate(python_string, last_formula.mode)
 

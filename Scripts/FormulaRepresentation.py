@@ -7,6 +7,10 @@ class Group(Box):
 
     def __init__(self, *args):
 
+        # Check if the only argument is a list
+        if len(args) == 1 and isinstance(args[0], list):
+            args = args[0]
+
         # Group initialization
         if len(args) > 1:
             self.chars = args      # List of characters in group
@@ -56,7 +60,7 @@ class Group(Box):
 
 
 class Expression(Box):
-    def __init__(self, formula_chars):
+    def __init__(self, formula_chars, variables):
         """ When an expression is created, a list of characters is given. Then we look for divisions. If a division
         is in the list, we create the widest division possible. Then we check if another division is still in the list
         and so on...
@@ -101,7 +105,7 @@ class Expression(Box):
 
             # If no list is empty, create fraction and add it to expression
             if len(above) > 0 and len(below) > 0:
-                fraction = Fraction(Expression(above), Expression(below))
+                fraction = Fraction(Expression(above, variables), Expression(below, variables))
                 self.base.append(fraction)
             # Else, act as only the non-empty one exists
             else:
@@ -137,26 +141,33 @@ class Expression(Box):
 
             else:
                 # Check if the new char is in the power group or not
-                if char.get_type() == power_group.type and power_group.type in [LETTER, DIGIT]:
+                if char.get_type() == power_group.type and power_group.type in [LETTER, DIGIT] and len(power_list) == 0:
                     power_group.append(char)
 
                 else:
                     # Convert power list to expression
                     if len(power_list) > 0:
-                        power_group.pow = Expression(power_list)
-                        power_list = []
+                        power_group.pow = Expression(power_list, variables)
+                        power_list.clear()
 
-                    # Add power group to output list
-                    output.append(power_group)
+                    if power_group.type == LETTER:
+                        # Split letter group
+                        output += split_letter_group(power_group, variables)
+                    else:
+                        # Add power group(s) to output list
+                        output.append(power_group)
 
                     # Create new power group
                     power_group = Group(char)
 
         # Add the last power group
         if len(power_list) > 0:
-            power_group.pow = Expression(power_list)
+            power_group.pow = Expression(power_list, variables)
 
-        output.append(power_group)
+        if power_group.type == LETTER:
+            output += split_letter_group(power_group, variables)
+        else:
+            output.append(power_group)
 
         # Save output list
         self.base = output
@@ -202,6 +213,69 @@ class Fraction(Box):
         return "(" + str(self.num) + ")/(" + str(self.den) + ")"
 
 
+def split_letter_group(group, variables):
+    """ Returns a list of split groups """
+    print("Vars: {} Group: {}".format(variables, str(group)))
+    # Make special case for singletons
+    if len(group.chars) == 1:
+        return [group]
+
+    # Construct group string TODO Powers cut groups
+    string = ""
+    for char in group.chars:
+        string += str(char)
+
+    # Split group
+    groups = []
+    bounds = []
+    for var in variables:
+        var_bounds = finditer(var, string)
+        for var_bound in var_bounds:
+            if all([bound[0] >= var_bound.end() or bound[1] <= var_bound.start() for bound in bounds]):
+                bounds.append([var_bound.start(), var_bound.end()])
+
+                new_group = Group(group.chars[var_bound.start():var_bound.end()])
+                if var_bound.end() == len(group.chars):
+                    new_group.pow = group.pow
+                groups.append(new_group)
+
+    # Construct left groups
+    begin = 0
+    grouping = all([0 < bound[0] or 0 >= bound[1] for bound in bounds])
+
+    for i in range(1, len(group.chars)):
+        if grouping:
+            if not all([i < bound[0] or i >= bound[1] for bound in bounds]):
+                # Found a left group end
+                print("Left group found: {}".format(string[begin:i]))
+                new_group = Group(group.chars[begin:i])
+
+                if i == len(group.chars):
+                    new_group.pow = group.pow
+
+                groups.append(new_group)
+
+                # Not grouping anymore
+                grouping = False
+        else:
+            if all([i < bound[0] or i >= bound[1] for bound in bounds]):
+                # Found a left group start
+                begin = i
+                grouping = True
+
+    # Check if we need to add the last group
+    if grouping:
+        print("Left group found: {}".format(string[begin:]))
+        new_group = Group(group.chars[begin:])
+        new_group.pow = group.pow
+        groups.append(new_group)
+
+    # Sort list by position
+    groups.sort(key=lambda e: e.x)
+
+    return groups
+
+
 def classify_horizontal_lines(formula):
     """ This function checks if a '-' character is a minus or a divide """
 
@@ -227,10 +301,10 @@ def classify_horizontal_lines(formula):
     return formula
 
 
-def get_python_rpz(formula):
+def get_python_rpz(formula, variables):
     """ Translates a Formula object into a python executable string """
     formula = classify_horizontal_lines(formula)
-    exp = Expression(formula.chars)
+    exp = Expression(formula.chars, variables)
     python_string = parenthesis_fix(str(exp))
     print(python_string)
     return python_string

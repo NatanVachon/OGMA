@@ -141,7 +141,7 @@ class Formula(Box):
         #self.entry.place(x=self.center[0] - 0.5 * self.width, y=self.center[1] + 0.6 * self.height)
         #self.entry_text.set(fr.get_python_rpz(self, ip.get_variable_names()))  TODO REMOOOOOOOVE
 
-        _ = fr.get_python_rpz(self)
+        _ = fr.get_python_rpz(self, ip.get_variable_names())
 
     def avoid_confusion(self):
         # If length is lower than two, no confusion is avoidable
