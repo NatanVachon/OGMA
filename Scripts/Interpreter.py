@@ -8,6 +8,8 @@ import tkinter as tk
 import numpy as np
 import sympy as sp
 
+from re import finditer  # TODO REMOVE
+
 
 globals_eval = {"COS": np.cos, "SIN": np.sin, "EXP": np.exp, "LOG": np.log}
 globals_sym = {"COS": sp.cos, "SIN": sp.sin, "EXP": sp.exp, "LOG": sp.log}
@@ -34,106 +36,122 @@ def get_variable_names():
     return names
 
 
-def evaluate(string, mode):
+def parenthesis_fix(raw_string):    # TODO REMOVE
+    """ We are looking for patterns like *1*...*1 with minimal number of characters in "..." to replace by (...) """
+    parenthesis = finditer(r"(\*1\*.{1," + str(len(raw_string)) + r"}?\*1)", raw_string)
+    python_list = list(raw_string)
+
+    for par in parenthesis:
+        python_list[par.start()] = ''
+        python_list[par.start() + 1] = ''
+        python_list[par.start() + 2] = '('
+        python_list[par.end() - 2] = ''
+        python_list[par.end() - 1] = ')'
+
+    python_list = [c for c in python_list if c != '']
+
+    python_string = ""
+    for char in python_list:
+        python_string += char
+
+    return python_string
+
+
+def evaluate(expression):
+    # Compute python string
+    string = parenthesis_fix(str(expression))
+    print(string)
+
     output = None
 
-    if mode == "Eval":
-        if string[-1] == '=':
-            output = str(eval(string[:-1], globals_eval, variables_eval))
-            print(output)
-        else:
-            exec(string, globals_eval, variables_eval)
-            print("Exec done")
+    # Check if every variable in the expression is declared
+    undeclared_variables = expression.variables - set(get_variable_names())
+    print("declared: {} diff: {}".format(variables_sym.keys(), undeclared_variables))
 
-    elif mode == "Declare":
-        # Sanity check
-        assert '=' in string, "A declaration must contain a '=' character"
+    if len(undeclared_variables) == 1:  # There is only one undeclared variable
+        # There must be a equal symbol
+        assert '=' in string, "Variable {} is not declared".format(undeclared_variables[0])
 
-        # Check if we declare a variable or a function
-        equal_idx = string.find('=')
-
-        # If there are parenthesis before the equal character, a function is declared
-        if '(' in string[:equal_idx] and ')' in string[:equal_idx]:
-            # Expression must be in the following format: f(x) = ...
-
-            # Extract variable name and function name
-            first_brace_idx = string.find('(')
-            variable = string[first_brace_idx + 1]
-            function = string[:first_brace_idx]
-
-            # Declare symbolic variable
-            variables_sym[variable] = sp.Symbol(variable)
-
-            # Declare symbolic function
-            exec(function + "_sym" + string[equal_idx:], globals_sym, variables_sym)
-
-            # Declare python symbolic function
-            variables_sym[function] = lambda xx: \
-                variables_sym[function + "_sym"].subs(variables_sym[variable], xx).evalf()
-
-            # Declare python eval function
-            def f_eval(xx):
-                f_x = variables_sym[function + "_sym"].subs(variables_sym[variable], xx)
-                for s in f_x.free_symbols:
-                    f_x = f_x.subs(s, variables_eval[str(s)])
-                return f_x.evalf()
-
-            # Save python function in eval variables
-            variables_eval[function] = f_eval
-
-            if function in variable_callbacks.keys():
-                # Execute function callbacks
-                execute_callbacks(function)
-            else:
-                # Create callback list for the new function
-                variable_callbacks[function] = []
-
-            # Add callbacks to each free symbol of the newly declared function
-            for symbol in variables_sym[function + "_sym"].free_symbols:
-                # Don't add callback on the function argument
-                if str(symbol) != variable:
-                    variable_callbacks[str(symbol)].append(lambda: execute_callbacks(function))
-
-        # Else, a constant is declared
-        else:
-            # Get declared constant name
-            constant = string[:equal_idx]
-
-            # Declare symbolic variable
-            variables_sym[constant] = sp.Symbol(constant)
-
-            # Assign constant value
-            exec(string, globals_eval, variables_eval)
-
-            if constant in variable_callbacks.keys():
-                # Execute constant callbacks
-                execute_callbacks(constant)
-            else:
-                # Create callback list for the new constant
-                variable_callbacks[constant] = []
-
-                # Add callbacks to each free symbol of the newly declared constant
-                for symbol in variables_sym[constant].free_symbols:
-                    # Avoid infinite calls
-                    if str(symbol) != constant:
-                        variable_callbacks[str(symbol)].append(lambda: execute_callbacks(constant))
-
-        # Call variable callbacks
-        execute_callbacks("any")
-
-    elif mode == "Solve":
-        # TODO For the moment, the unknown variable is always X
         # Declare unknown variable
-        variables_sym['X'] = sp.Symbol('X')
+        new_var = next(iter(undeclared_variables))
+        variables_sym[new_var] = sp.Symbol(new_var)
 
-        # Evaluate equation
+        # Create equation object
         equal_idx = string.find('=')
         equation = "_solve = " + string[:equal_idx] + "-" + string[equal_idx+1:]
         exec(equation, globals_sym, variables_sym)
 
         # Compute solution
-        output = sp.solve(variables_sym["_solve"], variables_sym['X'])
-        print(output)
+        output = sp.solve(variables_sym["_solve"], variables_sym[new_var])
+
+        # Assign value
+        # exec(string, globals_eval, variables_eval)
+        variables_eval[new_var] = output[0]
+
+        if new_var in variable_callbacks.keys():
+            # Execute constant callbacks
+            execute_callbacks(new_var)
+        else:
+            # Create callback list for the new constant
+            variable_callbacks[new_var] = []
+
+            # Add callbacks to each free symbol of the newly declared constant
+            for free_sym in variables_sym[new_var].free_symbols:
+                # Avoid infinite calls
+                if str(free_sym) != new_var:
+                    variable_callbacks[str(free_sym)].append(lambda: execute_callbacks(new_var))
+
+        # Call variable callbacks
+        execute_callbacks("any")
+
+    elif len(undeclared_variables) == 2:
+        # Check if we declare a variable or a function
+        equal_idx = string.find('=')
+
+        assert '(' in string[:equal_idx] and ')' in string[:equal_idx], "Missing parenthesis for function declaration"
+        # Expression must be in the following format: f(x) = ...
+
+        # Extract variable name and function name
+        first_brace_idx = string.find('(')
+        variable = string[first_brace_idx + 1]
+        function = string[:first_brace_idx]
+
+        # Declare symbolic variable
+        variables_sym[variable] = sp.Symbol(variable)
+
+        # Declare symbolic function
+        exec(function + "_sym" + string[equal_idx:], globals_sym, variables_sym)
+
+        # Declare python symbolic function
+        variables_sym[function] = lambda xx: \
+            variables_sym[function + "_sym"].subs(variables_sym[variable], xx).evalf()
+
+        # Declare python eval function
+        def f_eval(xx):
+            f_x = variables_sym[function + "_sym"].subs(variables_sym[variable], xx)
+            for s in f_x.free_symbols:
+                f_x = f_x.subs(s, variables_eval[str(s)])
+            return f_x.evalf()
+
+        # Save python function in eval variables
+        variables_eval[function] = f_eval
+
+        if function in variable_callbacks.keys():
+            # Execute function callbacks
+            execute_callbacks(function)
+        else:
+            # Create callback list for the new function
+            variable_callbacks[function] = []
+
+        # Add callbacks to each free symbol of the newly declared function
+        for symbol in variables_sym[function + "_sym"].free_symbols:
+            # Don't add callback on the function argument
+            if str(symbol) != variable:
+                variable_callbacks[str(symbol)].append(lambda: execute_callbacks(function))
+
+    # else:
+    #     output = str(eval(string, globals_eval, variables_eval))
+    #     print(output)
 
     return output
 
@@ -272,8 +290,7 @@ def toggle_variable_window(root):
         y_pos = 1.0
         for var_name, var_value in variables_sym.items():
             # If the name ends with "_sym", this is a function
-            if var_name[-4:] == "_sym":
-                # TODO get_latex_rpz
+            if len(var_name) > 4 and var_name[-4:] == "_sym":
                 var_value_str = str(var_value).replace('**', '^').replace('*', '')  # TODO REMOVE
                 ax.text(0.1, y_pos, "${0} = {1}$".format(var_name[:-4], var_value_str), fontsize=16)
                 y_pos -= 0.1

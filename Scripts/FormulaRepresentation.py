@@ -72,6 +72,7 @@ class Expression(Box):
         # Class attributes
         self.base = []   # Character and fractions list
         self.pow = None  # Power expression
+        self.variables = set()  # Variables in expression
 
         # Initialize box
         group_box = Box(chars[0])
@@ -105,8 +106,10 @@ class Expression(Box):
 
             # If no list is empty, create fraction and add it to expression
             if len(above) > 0 and len(below) > 0:
-                fraction = Fraction(Expression(above, variables), Expression(below, variables))
-                self.base.append(fraction)
+                above_exp, below_exp = Expression(above, variables), Expression(below, variables)
+                self.base.append(Fraction(above_exp, below_exp))
+                # Add variables to this expression
+                self.variables |= above_exp.variables | below_exp.variables
             # Else, act as only the non-empty one exists
             else:
                 if len(below) == 0:
@@ -152,7 +155,9 @@ class Expression(Box):
 
                     if power_group.type == LETTER:
                         # Split letter group
-                        output += split_letter_group(power_group, variables)
+                        new_groups = split_letter_group(power_group, variables)
+                        output += new_groups
+                        self.variables |= set([str(new_group) for new_group in new_groups])
                     else:
                         # Add power group(s) to output list
                         output.append(power_group)
@@ -165,7 +170,9 @@ class Expression(Box):
             power_group.pow = Expression(power_list, variables)
 
         if power_group.type == LETTER:
-            output += split_letter_group(power_group, variables)
+            new_groups = split_letter_group(power_group, variables)
+            output += new_groups
+            self.variables |= set([str(new_group) for new_group in new_groups])
         else:
             output.append(power_group)
 
@@ -194,17 +201,9 @@ class Fraction(Box):
         self.den = den  # Den expression
 
         # Compute bounds
-        x1, y1, x2, y2 = num.get_bounds()
-        super().__init__(x1, y1, x2, y2)
-        self.merge_box(den)
-
-    def split_power(self):
-        self.num.split_power()
-        self.den.split_power()
-
-    def split_multiply(self, declared_variables):
-        self.num.split_multiply()
-        self.den.split_multiply()
+        fraction_box = Box(num)
+        fraction_box.merge_box(den)
+        super().__init__(fraction_box)
 
     def get_type(self):
         return FRACTION
@@ -215,12 +214,12 @@ class Fraction(Box):
 
 def split_letter_group(group, variables):
     """ Returns a list of split groups """
-    print("Vars: {} Group: {}".format(variables, str(group)))
+
     # Make special case for singletons
     if len(group.chars) == 1:
         return [group]
 
-    # Construct group string TODO Powers cut groups
+    # Construct group string
     string = ""
     for char in group.chars:
         string += str(char)
@@ -232,6 +231,7 @@ def split_letter_group(group, variables):
         var_bounds = finditer(var, string)
         for var_bound in var_bounds:
             if all([bound[0] >= var_bound.end() or bound[1] <= var_bound.start() for bound in bounds]):
+                # New group identified
                 bounds.append([var_bound.start(), var_bound.end()])
 
                 new_group = Group(group.chars[var_bound.start():var_bound.end()])
@@ -301,34 +301,11 @@ def classify_horizontal_lines(formula):
     return formula
 
 
-def get_python_rpz(formula, variables):
+def get_python_expression(formula, variables):
     """ Translates a Formula object into a python executable string """
     formula = classify_horizontal_lines(formula)
     exp = Expression(formula.chars, variables)
-    python_string = parenthesis_fix(str(exp))
-    print(python_string)
-    return python_string
-
-
-def parenthesis_fix(raw_string):
-    """ We are looking for patterns like *1*...*1 with minimal number of characters in "..." to replace by (...) """
-    parenthesis = finditer(r"(\*1\*.{1," + str(len(raw_string)) + r"}?\*1)", raw_string)
-    python_list = list(raw_string)
-
-    for par in parenthesis:
-        python_list[par.start()] = ''
-        python_list[par.start() + 1] = ''
-        python_list[par.start() + 2] = '('
-        python_list[par.end() - 2] = ''
-        python_list[par.end() - 1] = ')'
-
-    python_list = [c for c in python_list if c != '']
-
-    python_string = ""
-    for char in python_list:
-        python_string += char
-
-    return python_string
+    return exp
 
 
 def is_power(power_box, next_char):
