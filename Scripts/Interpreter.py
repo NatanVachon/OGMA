@@ -103,6 +103,9 @@ def evaluate(equation):
         # exec(string, globals_eval, variables_eval)
         variables_eval[var] = output[0]
 
+        # Call variable callbacks
+        execute_callbacks("any")
+
     # FUNCTION DECLARATION MODE
     # We enter this mode if :
     #   - Exactly two undeclared variable on the left side (function name and silent variable)
