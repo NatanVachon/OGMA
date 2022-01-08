@@ -95,9 +95,9 @@ class App:
 
     def evaluate(self):
         last_formula = self.book.get_last_formula()
-        python_exp = fr.get_python_expression(last_formula, ip.get_variable_names())
+        python_eq = fr.get_python_equation(last_formula, ip.get_variable_names())
 
-        ip.evaluate(python_exp)
+        ip.evaluate(python_eq)
 
     def set_mode(self, mode):
         self.book.set_mode(mode)

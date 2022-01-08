@@ -70,8 +70,7 @@ class Expression(Box):
         chars = formula_chars.copy()
 
         # Class attributes
-        self.base = []   # Character and fractions list
-        self.pow = None  # Power expression
+        self.base = []          # Character and fractions list
         self.variables = set()  # Variables in expression
 
         # Initialize box
@@ -192,7 +191,7 @@ class Expression(Box):
 
             p_group = group
 
-        return out
+        return parenthesis_fix(out)
 
 
 class Fraction(Box):
@@ -210,6 +209,55 @@ class Fraction(Box):
 
     def __str__(self):
         return "(" + str(self.num) + ")/(" + str(self.den) + ")"
+
+
+class Equation:
+    def __init__(self, formula_chars, variables):
+        # assert that there is one and only one equal symbol in the equation
+        assert [char.prediction for char in formula_chars].count('=') == 1, "No equal symbol in equation"
+
+        # Sort characters by their x coordinate
+        chars = formula_chars.copy()
+        chars.sort(key=lambda c: c.x)
+
+        # Split characters relatively to the equal symbol
+        equal_char = next(char for char in chars if char.prediction == '=')
+        equal_idx = chars.index(equal_char)
+        # Check that left side isn't empty
+        assert equal_idx != 0, "Left side of equation is empty"
+        left_chars = chars[:equal_idx]
+        # Check if right side is empty
+        if equal_idx == len(chars) - 1:
+            right_chars = []
+        else:
+            right_chars = chars[equal_idx + 1:]
+
+        # Create expressions
+        self.left, self.right = Expression(left_chars, variables), Expression(right_chars, variables)
+
+    def __str__(self):
+        return str(self.left) + '=' + str(self.right)  # TODO REMOVE PARENTHESIS_FIX
+
+
+def parenthesis_fix(raw_string):    # TODO REMOVE
+    """ We are looking for patterns like *1*...*1 with minimal number of characters in "..." to replace by (...) """
+    parenthesis = finditer(r"(\*1\*.{1," + str(len(raw_string)) + r"}?\*1)", raw_string)
+    python_list = list(raw_string)
+
+    for par in parenthesis:
+        python_list[par.start()] = ''
+        python_list[par.start() + 1] = ''
+        python_list[par.start() + 2] = '('
+        python_list[par.end() - 2] = ''
+        python_list[par.end() - 1] = ')'
+
+    python_list = [c for c in python_list if c != '']
+
+    python_string = ""
+    for char in python_list:
+        python_string += char
+
+    return python_string
 
 
 def split_letter_group(group, variables):
@@ -247,7 +295,6 @@ def split_letter_group(group, variables):
         if grouping:
             if not all([i < bound[0] or i >= bound[1] for bound in bounds]):
                 # Found a left group end
-                print("Left group found: {}".format(string[begin:i]))
                 new_group = Group(group.chars[begin:i])
 
                 if i == len(group.chars):
@@ -265,7 +312,6 @@ def split_letter_group(group, variables):
 
     # Check if we need to add the last group
     if grouping:
-        print("Left group found: {}".format(string[begin:]))
         new_group = Group(group.chars[begin:])
         new_group.pow = group.pow
         groups.append(new_group)
@@ -302,10 +348,15 @@ def classify_horizontal_lines(formula):
 
 
 def get_python_expression(formula, variables):
-    """ Translates a Formula object into a python executable string """
-    formula = classify_horizontal_lines(formula)
+    formula = classify_horizontal_lines(formula)  # TODO maybe remove ?
     exp = Expression(formula.chars, variables)
     return exp
+
+
+def get_python_equation(formula, variables):
+    formula = classify_horizontal_lines(formula)  # TODO maybe remove ?
+    eq = Equation(formula.chars, variables)
+    return eq
 
 
 def is_power(power_box, next_char):

@@ -8,8 +8,6 @@ import tkinter as tk
 import numpy as np
 import sympy as sp
 
-from re import finditer  # TODO REMOVE
-
 
 globals_eval = {"COS": np.cos, "SIN": np.sin, "EXP": np.exp, "LOG": np.log}
 globals_sym = {"COS": sp.cos, "SIN": sp.sin, "EXP": sp.exp, "LOG": sp.log}
@@ -36,49 +34,29 @@ def get_variable_names():
     return names
 
 
-def parenthesis_fix(raw_string):    # TODO REMOVE
-    """ We are looking for patterns like *1*...*1 with minimal number of characters in "..." to replace by (...) """
-    parenthesis = finditer(r"(\*1\*.{1," + str(len(raw_string)) + r"}?\*1)", raw_string)
-    python_list = list(raw_string)
-
-    for par in parenthesis:
-        python_list[par.start()] = ''
-        python_list[par.start() + 1] = ''
-        python_list[par.start() + 2] = '('
-        python_list[par.end() - 2] = ''
-        python_list[par.end() - 1] = ')'
-
-    python_list = [c for c in python_list if c != '']
-
-    python_string = ""
-    for char in python_list:
-        python_string += char
-
-    return python_string
-
-
-def evaluate(expression):
+def evaluate(equation):
     # Compute python string
-    string = parenthesis_fix(str(expression))
-    print(string)
+    print(equation)
 
     output = None
 
     # Check if every variable in the expression is declared
-    undeclared_variables = expression.variables - set(get_variable_names())
-    print("declared: {} diff: {}".format(variables_sym.keys(), undeclared_variables))
+    declared_vars = set(get_variable_names())
+    left_undeclared_vars = equation.left.variables - declared_vars
+    right_undeclared_vars = equation.right.variables - declared_vars
 
-    if len(undeclared_variables) == 1:  # There is only one undeclared variable
-        # There must be a equal symbol
-        assert '=' in string, "Variable {} is not declared".format(undeclared_variables[0])
+    # VARIABLE DECLARATION MODE
+    # We enter this mode if :
+    #   - Maximum one undeclared variable on the left side
+    #   - No undeclared variable on the right side
 
+    if len(left_undeclared_vars) == 1 and len(right_undeclared_vars) == 0:
         # Declare unknown variable
-        new_var = next(iter(undeclared_variables))
+        new_var = next(iter(left_undeclared_vars))
         variables_sym[new_var] = sp.Symbol(new_var)
 
         # Create equation object
-        equal_idx = string.find('=')
-        equation = "_solve = " + string[:equal_idx] + "-" + string[equal_idx+1:]
+        equation = "_solve = " + str(equation.left) + '-' + str(equation.right)
         exec(equation, globals_sym, variables_sym)
 
         # Compute solution
@@ -104,23 +82,51 @@ def evaluate(expression):
         # Call variable callbacks
         execute_callbacks("any")
 
-    elif len(undeclared_variables) == 2:
-        # Check if we declare a variable or a function
-        equal_idx = string.find('=')
+    # VARIABLE UPDATE MODE
+    # We enter this mode if :
+    #   - No undeclared variable on the left side
+    #   - No undeclared variable on the right side
+    #   - Exactly one declared variable on the left side
 
-        assert '(' in string[:equal_idx] and ')' in string[:equal_idx], "Missing parenthesis for function declaration"
+    elif len(left_undeclared_vars) == 0 and len(right_undeclared_vars) == 0 and len(equation.left.base) == 1:
+        # Get updated variable
+        var = str(equation.left.base[0])
+
+        # Create equation object
+        equation = "_solve = " + str(equation.left) + '-' + str(equation.right)
+        exec(equation, globals_sym, variables_sym)
+
+        # Compute solution
+        output = sp.solve(variables_sym["_solve"], variables_sym[var])
+
+        # Assign value
+        # exec(string, globals_eval, variables_eval)
+        variables_eval[var] = output[0]
+
+    # FUNCTION DECLARATION MODE
+    # We enter this mode if :
+    #   - Exactly two undeclared variable on the left side (function name and silent variable)
+    #   - Exactly one undeclared variable on the right side (silent variable)
+    #   - The right side undeclared variable is one of the left's
+    elif len(left_undeclared_vars) == 2 and len(right_undeclared_vars) == 1 \
+            and right_undeclared_vars[0] in left_undeclared_vars:
+
+        # Create left side string
+        left_string = str(equation.left)  # TODO remove parenthesis fix
+
+        assert '(' in left_string and ')' in left_string, "Missing parenthesis for function declaration"
         # Expression must be in the following format: f(x) = ...
 
-        # Extract variable name and function name
-        first_brace_idx = string.find('(')
-        variable = string[first_brace_idx + 1]
-        function = string[:first_brace_idx]
+        # Extract variable name and function name TODO look for (?) format
+        first_brace_idx = left_string.find('(')
+        variable = left_string[first_brace_idx + 1]
+        function = left_string[first_brace_idx - 1]
 
         # Declare symbolic variable
         variables_sym[variable] = sp.Symbol(variable)
 
         # Declare symbolic function
-        exec(function + "_sym" + string[equal_idx:], globals_sym, variables_sym)
+        exec(function + "_sym" + '=' + str(equation.right), globals_sym, variables_sym)
 
         # Declare python symbolic function
         variables_sym[function] = lambda xx: \
@@ -149,9 +155,13 @@ def evaluate(expression):
             if str(symbol) != variable:
                 variable_callbacks[str(symbol)].append(lambda: execute_callbacks(function))
 
-    # else:
-    #     output = str(eval(string, globals_eval, variables_eval))
-    #     print(output)
+    # EVALUATION MODE
+    # We enter this mode if :
+    #   - No undeclared variables on the left side
+    #   - No characters on the right side
+    elif len(left_undeclared_vars) == 0 and len(equation.right) == 0:
+        output = str(eval(str(equation.left), globals_eval, variables_eval))
+        print(output)
 
     return output
 
