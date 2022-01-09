@@ -195,7 +195,6 @@ class PlotWindow(tk.Toplevel):
     def toggle(root):
         if PlotWindow.window:
             PlotWindow.window.destroy()
-            PlotWindow.window = None
         else:
             PlotWindow.window = PlotWindow(root)
 
@@ -305,67 +304,77 @@ class PlotWindow(tk.Toplevel):
         # Destroy window
         super().destroy()
 
+        # Clear window variable
+        PlotWindow.window = None
 
-def toggle_variable_window(root):
-    # Define destroy function
-    def destroy():
-        toggle_variable_window.top.destroy()
-        toggle_variable_window.top = None
+
+class VariableWindow(tk.Toplevel):
+    window = None
+
+    @staticmethod
+    def toggle(root):
+        if VariableWindow.window:
+            VariableWindow.window.destroy()
+        else:
+            VariableWindow.window = VariableWindow(root)
+
+    def __init__(self, root, **kw):
+        # Superclass constructor
+        super().__init__(**kw)
+
+        # Open new window
+        self.title("Variables")
+        self.transient(root)  # Variable window is always on top of the main window
+        # Set window geometry
+        w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+        self.geometry("{0}x{1}+{2}+{3}".format(int(0.1 * w), int(0.5 * h), int(0.9 * w), 10))
+        # Bind destroy
+        self.bind('v', lambda event: self.destroy())
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+
+        # Create figure
+        self.f = Figure()
+        self.ax = self.f.add_subplot(111)
+
         # Add display function to variables callback
-        variable_callbacks["any"].remove(display_variables)
+        variable_callbacks["any"].append(self.display_variables)
 
-    # Define display function
-    def display_variables():
-        ax.clear()
-        ax.set_axis_off()
+        # Display current variables
+        self.display_variables()
+
+        # Create canvas
+        canvas = FigureCanvasTkAgg(self.f, self)
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def display_variables(self):
+        self.ax.clear()
+        self.ax.set_axis_off()
         # Initialize y position
         y_pos = 1.0
         for var_name, var_value in variables_sym.items():
             # If the name ends with "_sym", this is a function
             if len(var_name) > 4 and var_name[-4:] == "_sym":
                 var_value_str = str(var_value).replace('**', '^').replace('*', '')  # TODO REMOVE
-                ax.text(0.1, y_pos, "${0} = {1}$".format(var_name[:-4], var_value_str), fontsize=16)
+                self.ax.text(0.1, y_pos, "${0} = {1}$".format(var_name[:-4], var_value_str), fontsize=16)
                 y_pos -= 0.1
 
             # If the variable isn't callable and exists in variables_sym and variables_eval, it's a constant
             elif not callable(var_value) and var_name in variables_eval.keys():
                 var_value_str = str(variables_eval[var_name]).replace('**', '^').replace('*', '')  # TODO REMOVE
-                ax.text(0.1, y_pos, "${0} = {1}$".format(var_name, var_value_str), fontsize=16)
+                self.ax.text(0.1, y_pos, "${0} = {1}$".format(var_name, var_value_str), fontsize=16)
                 y_pos -= 0.1
 
         # Update figure
-        f.canvas.draw()
-        f.canvas.flush_events()
+        self.f.canvas.draw()
+        self.f.canvas.flush_events()
 
-    # Check not to raise error
-    if not hasattr(toggle_variable_window, "top"):
-        toggle_variable_window.top = None
+    def destroy(self):
+        # Remove display function to variables callback
+        if self.display_variables in variable_callbacks["any"]:
+            variable_callbacks["any"].remove(self.display_variables)
 
-    # If window is already open, close it
-    if toggle_variable_window.top:
-        destroy()
-        return
+        # Destroy top window
+        super().destroy()
 
-    # Open new window
-    toggle_variable_window.top = tk.Toplevel()
-    toggle_variable_window.top.title("Variables")
-    toggle_variable_window.top.transient(root)  # Variable window is always on top of the main window
-    # Set window geometry
-    w, h = root.winfo_screenwidth(), root.winfo_screenheight()
-    toggle_variable_window.top.geometry("{0}x{1}+{2}+{3}".format(int(0.1 * w), int(0.5 * h), int(0.9 * w), 10))
-    # Bind destroy
-    toggle_variable_window.top.bind('v', lambda event: destroy())
-
-    # Create figure
-    f = Figure()
-    ax = f.add_subplot(111)
-
-    # Add display function to variables callback
-    variable_callbacks["any"].append(display_variables)
-
-    # Display current variables
-    display_variables()
-
-    # Create canvas
-    canvas = FigureCanvasTkAgg(f, toggle_variable_window.top)
-    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        # Clear static variable
+        VariableWindow.window = None

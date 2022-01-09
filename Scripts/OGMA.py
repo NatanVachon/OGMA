@@ -46,7 +46,7 @@ class App:
         # Initialize interpreter binds
         self.window.bind('e', lambda event: self.evaluate())
         self.window.bind('p', lambda event: ip.PlotWindow.toggle(self.window))
-        self.window.bind('v', lambda event: ip.toggle_variable_window(self.window))
+        self.window.bind('v', lambda event: ip.VariableWindow.toggle(self.window))
 
         # Initialize draw mode and right click menu for mode selection
         self.draw_mode = "Declare"
