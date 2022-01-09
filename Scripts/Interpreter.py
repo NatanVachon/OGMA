@@ -8,6 +8,7 @@ import tkinter as tk
 import numpy as np
 import sympy as sp
 
+from re import finditer
 
 globals_eval = {"COS": np.cos, "SIN": np.sin, "EXP": np.exp, "LOG": np.log}
 globals_sym = {"COS": sp.cos, "SIN": sp.sin, "EXP": sp.exp, "LOG": sp.log}
@@ -35,9 +36,9 @@ def get_variable_names():
 
 
 def evaluate(equation):
-    # Compute python string
     print(equation)
 
+    # Initialize output
     output = None
 
     # Check if every variable in the expression is declared
@@ -45,12 +46,20 @@ def evaluate(equation):
     left_undeclared_vars = equation.left.variables - declared_vars
     right_undeclared_vars = equation.right.variables - declared_vars
 
+    # EVALUATION MODE
+    # We enter this mode if :
+    #   - No undeclared variables on the left side
+    #   - No characters on the right side
+    if len(left_undeclared_vars) == 0 and len(equation.right) == 0:
+        output = str(eval(str(equation.left), globals_eval, variables_eval))
+        print(output)
+
     # VARIABLE DECLARATION MODE
     # We enter this mode if :
     #   - Maximum one undeclared variable on the left side
     #   - No undeclared variable on the right side
 
-    if len(left_undeclared_vars) == 1 and len(right_undeclared_vars) == 0:
+    elif len(left_undeclared_vars) == 1 and len(right_undeclared_vars) == 0:
         # Declare unknown variable
         new_var = next(iter(left_undeclared_vars))
         variables_sym[new_var] = sp.Symbol(new_var)
@@ -63,7 +72,6 @@ def evaluate(equation):
         output = sp.solve(variables_sym["_solve"], variables_sym[new_var])
 
         # Assign value
-        # exec(string, globals_eval, variables_eval)
         variables_eval[new_var] = output[0]
 
         if new_var in variable_callbacks.keys():
@@ -111,25 +119,29 @@ def evaluate(equation):
     #   - Exactly two undeclared variable on the left side (function name and silent variable)
     #   - Exactly one undeclared variable on the right side (silent variable)
     #   - The right side undeclared variable is one of the left's
-    elif len(left_undeclared_vars) == 2 and len(right_undeclared_vars) == 1 \
-            and right_undeclared_vars[0] in left_undeclared_vars:
 
+    elif is_function(str(equation.left), left_undeclared_vars, right_undeclared_vars):
         # Create left side string
-        left_string = str(equation.left)  # TODO remove parenthesis fix
+        left_string = str(equation.left)
 
-        assert '(' in left_string and ')' in left_string, "Missing parenthesis for function declaration"
         # Expression must be in the following format: f(x) = ...
+        assert '(' in left_string and ')' in left_string, "Missing parenthesis for function declaration"
 
-        # Extract variable name and function name TODO look for (?) format
-        first_brace_idx = left_string.find('(')
-        variable = left_string[first_brace_idx + 1]
-        function = left_string[first_brace_idx - 1]
+        # Extract variable name and function name
+        # Searched format is "f(x)"
+        function_start = next(finditer(r"[a-zA-Z]\([a-zA-Z]\)", left_string)).start()
+
+        function = left_string[function_start]
+        variable = left_string[function_start + 2]
 
         # Declare symbolic variable
         variables_sym[variable] = sp.Symbol(variable)
 
         # Declare symbolic function
         exec(function + "_sym" + '=' + str(equation.right), globals_sym, variables_sym)
+
+        # Simplify function and make it a sympy instance
+        variables_sym[function + "_sym"] = sp.simplify(variables_sym[function + "_sym"])
 
         # Declare python symbolic function
         variables_sym[function] = lambda xx: \
@@ -158,15 +170,22 @@ def evaluate(equation):
             if str(symbol) != variable:
                 variable_callbacks[str(symbol)].append(lambda: execute_callbacks(function))
 
-    # EVALUATION MODE
-    # We enter this mode if :
-    #   - No undeclared variables on the left side
-    #   - No characters on the right side
-    elif len(left_undeclared_vars) == 0 and len(equation.right) == 0:
-        output = str(eval(str(equation.left), globals_eval, variables_eval))
-        print(output)
-
     return output
+
+
+def is_function(left_string, left_undeclared_vars, right_undeclared_vars):
+    """ Function used to determine if the evaluated equation is a function declaration """
+    if len(left_undeclared_vars) != 2 or len(right_undeclared_vars) > 1:
+        return False
+
+    if len(right_undeclared_vars) == 1:
+        function_start = next(finditer(r"[a-zA-Z]\([a-zA-Z]\)", left_string)).start()
+        silent_var = left_string[function_start + 2]
+
+        if silent_var != next(iter(right_undeclared_vars)):
+            return False
+
+    return True
 
 
 class PlotWindow(tk.Toplevel):
