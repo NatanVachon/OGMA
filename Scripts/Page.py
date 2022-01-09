@@ -42,8 +42,7 @@ class Book:
         self.focused_page = self.pages[-1]
 
     def add_line(self, new_line):
-        if self.focused_page.blackboard.mode != "Free":
-            self.focused_page.blackboard.add_line(new_line)
+        self.focused_page.blackboard.add_line(new_line)
 
     def get_last_formula(self):
         return self.focused_page.blackboard.get_last_formula()

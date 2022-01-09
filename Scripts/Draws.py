@@ -88,15 +88,12 @@ class Character(Box):
 
 
 class Formula(Box):
-    def __init__(self, line, mode):
+    def __init__(self, line):
         # Initialize class instance
         super().__init__(line)
 
         # Initialize characters list
         self.chars = []
-
-        # Initialize mode
-        self.mode = mode
 
         # Initialize rectangle
         self.rectangle = Book.canvas.create_rectangle(0, 0, 0, 0, outline="green")
@@ -204,7 +201,6 @@ class Formula(Box):
 class BlackBoard:
     def __init__(self):
         self.formulas = []
-        self.mode = "Free"  # Blackboard mode corresponds to the mode given to the next created formulas
 
     def add_line(self, new_line):
         # TODO currently: only the last formula
@@ -214,7 +210,7 @@ class BlackBoard:
             last_formula = self.formulas[-1]
             last_formula.add_line(new_line)
         else:
-            last_formula = Formula(new_line, self.mode)
+            last_formula = Formula(new_line)
             self.formulas.append(last_formula)
 
         # Assign line delete callback to formula.clean

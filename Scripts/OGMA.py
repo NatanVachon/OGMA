@@ -48,12 +48,11 @@ class App:
         self.window.bind('p', lambda event: ip.PlotWindow.toggle(self.window))
         self.window.bind('v', lambda event: ip.toggle_variable_window(self.window))
 
-        # Initialize right click menu for mode selection
+        # Initialize draw mode and right click menu for mode selection
+        self.draw_mode = "Declare"
         self.right_click_menu = tk.Menu(self.window, tearoff=False)
         self.right_click_menu.add_command(label="Free", command=lambda: self.set_mode("Free"))
-        self.right_click_menu.add_command(label="Eval", command=lambda: self.set_mode("Eval"))
         self.right_click_menu.add_command(label="Declare", command=lambda: self.set_mode("Declare"))
-        self.right_click_menu.add_command(label="Solve", command=lambda: self.set_mode("Solve"))
 
         # BRUSH
         # Initialize brush
@@ -90,8 +89,9 @@ class App:
         # Save line to undo later
         self.actions.put(new_line)
 
-        # Add line to blackboard
-        self.book.add_line(new_line)
+        # If we are not in free mode, add line to blackboard
+        if self.draw_mode == "Declare":
+            self.book.add_line(new_line)
 
     def evaluate(self):
         last_formula = self.book.get_last_formula()
@@ -100,7 +100,7 @@ class App:
         ip.evaluate(python_eq)
 
     def set_mode(self, mode):
-        self.book.set_mode(mode)
+        self.draw_mode = mode
 
     def undo(self):
         last_action = self.actions.get()
