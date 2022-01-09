@@ -37,7 +37,7 @@ class App:
         new_page_button.configure(command=self.new_page)
 
         # Initialize undo
-        self.actions = Deque(10)
+        self.actions = Deque(20)
         self.window.bind("<Control-z>", lambda event: self.undo())
 
         # Initialize plot button callback
